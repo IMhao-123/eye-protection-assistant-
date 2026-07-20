@@ -1,0 +1,45 @@
+name: Bug 报告
+description: 报告可稳定复现的功能或界面问题
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 请说明实际行为及其影响。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开……
+        2. 点击……
+        3. 观察……
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS 版本
+      placeholder: 例如 macOS 15.5
+    validations:
+      required: true
+  - type: input
+    id: displays
+    attributes:
+      label: 显示器环境
+      placeholder: 例如 MacBook 内屏 + 4K 外接屏
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截图、日志或其他信息
+

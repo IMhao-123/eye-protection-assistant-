@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions required by the eye-care assistant windows",
+  "windows": ["main", "widget", "break-*"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:allow-start-dragging",
+    "autostart:default",
+    "notification:default"
+  ]
+}

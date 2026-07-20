@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="护眼助手菜单栏图标">
+  <g fill="none" stroke="#000" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1.8 16C5.6 8.1 10.3 4.2 16 4.2S26.4 8.1 30.2 16C26.4 23.9 21.7 27.8 16 27.8S5.6 23.9 1.8 16Z"/>
+    <path d="M10.1 18.7c3.9-2.5 7.9-2.5 11.8 0" stroke-width="1.9"/>
+  </g>
+  <circle cx="16" cy="13.5" r="3.4" fill="#000"/>
+</svg>

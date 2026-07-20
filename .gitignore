@@ -1,0 +1,49 @@
+# ── Node / 前端 ───────────────────────────────
+node_modules/
+dist/
+coverage/
+
+# ── TypeScript 构建缓存 ───────────────────────
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+
+# ── 环境变量 / 密钥 ───────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Rust / Tauri 编译产物 ─────────────────────
+src-tauri/target/
+src-tauri/gen/
+src-tauri/.cargo/
+src-tauri/binaries/
+
+# ── 打包产物 ──────────────────────────────────
+*.app
+*.dmg
+*.dmg.sha256
+
+# ── macOS 系统垃圾 ────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+.AppleDB
+.AppleDesktop
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.DocumentRevisions-V100
+
+# ── 编辑器 / IDE ──────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── 日志 ──────────────────────────────────────
+*.log
+
+# ── Rust 备份文件 ─────────────────────────────
+**/*.rs.bk

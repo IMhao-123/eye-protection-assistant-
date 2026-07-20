@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="护眼助手图标">
+  <defs>
+    <linearGradient id="base" x1="92" y1="52" x2="430" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E9F5EF"/>
+      <stop offset="0.48" stop-color="#B5D9CB"/>
+      <stop offset="1" stop-color="#69A58F"/>
+    </linearGradient>
+    <radialGradient id="light" cx="0" cy="0" r="1" gradientTransform="translate(196 142) rotate(48) scale(290)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.68"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="land" x1="256" y1="253" x2="256" y2="352" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4D8B77"/>
+      <stop offset="1" stop-color="#214F43"/>
+    </linearGradient>
+    <clipPath id="aperture"><circle cx="256" cy="256" r="91"/></clipPath>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#173D33" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <rect x="8" y="8" width="496" height="496" rx="116" fill="url(#base)"/>
+  <rect x="8" y="8" width="496" height="496" rx="116" fill="url(#light)"/>
+  <path d="M116 210C153 153 201 124 256 124C311 124 359 153 396 210" fill="none" stroke="#285E50" stroke-opacity="0.42" stroke-width="20" stroke-linecap="round"/>
+  <path d="M116 302C153 359 201 388 256 388C311 388 359 359 396 302" fill="none" stroke="#F6FBF8" stroke-opacity="0.68" stroke-width="20" stroke-linecap="round"/>
+  <g filter="url(#shadow)">
+    <circle cx="256" cy="256" r="101" fill="#F4FAF7" fill-opacity="0.94"/>
+    <g clip-path="url(#aperture)">
+      <rect x="165" y="165" width="182" height="182" fill="#DDEFE7"/>
+      <circle cx="286" cy="220" r="19" fill="#FFF9D8"/>
+      <path d="M142 291C188 255 232 260 274 280C306 295 337 289 370 266V370H142V291Z" fill="#78AD98"/>
+      <path d="M142 314C194 278 237 285 280 306C315 323 345 313 370 296V370H142V314Z" fill="url(#land)"/>
+      <path d="M171 280C211 263 252 267 294 287C316 298 335 297 354 288" fill="none" stroke="#F1F8F4" stroke-opacity="0.8" stroke-width="7" stroke-linecap="round"/>
+    </g>
+    <circle cx="256" cy="256" r="96" fill="none" stroke="#255C4E" stroke-width="10"/>
+  </g>
+</svg>
