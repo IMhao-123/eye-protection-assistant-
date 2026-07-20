@@ -5,7 +5,11 @@
   <p><strong>专注二十分钟，望向远处二十秒。</strong></p>
 </div>
 
-> 当前为 `0.1.0` 预览版。本次构建与实际试用环境为 Apple Silicon Mac、macOS 27.0。
+> 当前为 `0.1.0` 预览版。本次构建与实际试用环境为 Apple Silicon Mac、Tahoe 27.0(beta版)。
+
+护眼助手（eye-protection-assistant）是个常驻 macOS 菜单栏的小工具。它每专注 20 分钟，就邀请你望向远处 20 秒；休息画面会铺满每一块屏幕，让这二十秒不被顺手略过。计时胶囊可拖动、可隐藏、会记住你的位置；关掉窗口进度也不丢，唤醒 Mac 后按你的习惯接着来。不弹窗催促、不联网、不收集你的数据，只安静地替你记得休息。
+
+eye-protection-assistant — a quiet macOS menubar app that reminds you to look away for 20 seconds every 20 minutes. Full-screen breaks on every display, draggable timer, no pop-ups, fully offline.
 
 ## 屏幕不会提醒你休息
 
