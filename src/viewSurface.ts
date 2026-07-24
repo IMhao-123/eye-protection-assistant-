@@ -7,4 +7,9 @@ export function resolveViewMode(search: string): ViewMode {
 
 export function applyDocumentSurface(view: ViewMode, target: Document = document) {
   target.documentElement.dataset.view = view;
+  const background = view === "widget" ? "transparent" : "";
+  target.documentElement.style.backgroundColor = background;
+  target.body.style.backgroundColor = background;
+  const root = target.getElementById("root");
+  if (root) root.style.backgroundColor = background;
 }

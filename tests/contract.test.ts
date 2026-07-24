@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SETTINGS, type TimerAction } from "../src/types";
+import {
+  AVAILABLE_COLOR_SCHEMES,
+  DEFAULT_SETTINGS,
+  type ColorScheme,
+  type TimerAction,
+} from "../src/types";
 
 describe("Rust and TypeScript contract", () => {
   it("uses the versioned 20-20 defaults", () => {
@@ -27,5 +32,17 @@ describe("Rust and TypeScript contract", () => {
       "tick",
     ];
     expect(actions).toHaveLength(11);
+  });
+
+  it("exposes all five completed color schemes", () => {
+    const schemes: ColorScheme[] = [
+      "original",
+      "morning_lake",
+      "graphite_lime",
+      "mist_blue_coral",
+      "porcelain_forest",
+    ];
+    expect(AVAILABLE_COLOR_SCHEMES).toEqual(schemes);
+    expect(DEFAULT_SETTINGS.colorScheme).toBe("mist_blue_coral");
   });
 });

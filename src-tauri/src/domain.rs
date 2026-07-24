@@ -35,6 +35,16 @@ pub enum ThemePreference {
     Dark,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ColorScheme {
+    Original,
+    MorningLake,
+    GraphiteLime,
+    MistBlueCoral,
+    PorcelainForest,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
@@ -45,6 +55,7 @@ pub struct AppSettings {
     pub sleep_policy: SleepPolicy,
     pub language: AppLanguage,
     pub theme: ThemePreference,
+    pub color_scheme: ColorScheme,
     pub sound_enabled: bool,
     pub notification_enabled: bool,
     pub launch_at_login: bool,
@@ -62,6 +73,7 @@ impl Default for AppSettings {
             sleep_policy: SleepPolicy::RestartCycle,
             language: AppLanguage::System,
             theme: ThemePreference::System,
+            color_scheme: ColorScheme::MistBlueCoral,
             sound_enabled: true,
             notification_enabled: true,
             launch_at_login: false,
@@ -108,7 +120,7 @@ pub struct AppSnapshot {
     pub recoverable_error: Option<RecoverableAppError>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TimerAction {
     Start,
@@ -220,12 +232,18 @@ impl TimerEngine {
                 self.snapshot.skip_confirmation = SkipConfirmationState::None;
                 true
             }
-            TimerAction::Sleep if self.snapshot.phase != TimerPhase::Idle => {
+            TimerAction::Sleep
+                if self.snapshot.phase != TimerPhase::Idle
+                    && self.suspended_remaining_ms.is_none() =>
+            {
                 self.refresh_remaining(now_ms);
                 self.suspended_remaining_ms = Some(self.current_remaining_ms(now_ms));
                 true
             }
-            TimerAction::Wake if self.snapshot.phase != TimerPhase::Idle => {
+            TimerAction::Wake
+                if self.snapshot.phase != TimerPhase::Idle
+                    && self.suspended_remaining_ms.is_some() =>
+            {
                 self.handle_wake(now_ms)
             }
             TimerAction::Tick => self.tick(now_ms),
@@ -274,6 +292,9 @@ impl TimerEngine {
     }
 
     fn tick(&mut self, now_ms: u64) -> bool {
+        if self.suspended_remaining_ms.is_some() {
+            return false;
+        }
         if !matches!(
             self.snapshot.phase,
             TimerPhase::Working | TimerPhase::Resting
@@ -313,11 +334,57 @@ impl TimerEngine {
                     false
                 }
             }
-            SleepPolicy::RealTime => self.tick(now_ms),
+            SleepPolicy::RealTime => self.advance_with_real_time(now_ms),
         }
     }
 
+    fn advance_with_real_time(&mut self, now_ms: u64) -> bool {
+        if !matches!(
+            self.snapshot.phase,
+            TimerPhase::Working | TimerPhase::Resting
+        ) {
+            return false;
+        }
+        let Some(deadline_ms) = self.deadline_ms else {
+            return false;
+        };
+        let before = self.snapshot.clone();
+        if now_ms < deadline_ms {
+            self.refresh_remaining(now_ms);
+            return self.snapshot != before;
+        }
+
+        let work_ms = self.snapshot.settings.work_minutes as u64 * 60_000;
+        let rest_ms = self.snapshot.settings.rest_seconds as u64 * 1_000;
+        let (first_phase, first_duration, second_phase, second_duration) = match self.snapshot.phase
+        {
+            TimerPhase::Working => (TimerPhase::Resting, rest_ms, TimerPhase::Working, work_ms),
+            TimerPhase::Resting => (TimerPhase::Working, work_ms, TimerPhase::Resting, rest_ms),
+            TimerPhase::Idle | TimerPhase::Paused => unreachable!(),
+        };
+        let cycle_duration = first_duration.saturating_add(second_duration);
+        let cycle_offset = now_ms.saturating_sub(deadline_ms) % cycle_duration;
+        let (phase, remaining_ms) = if cycle_offset < first_duration {
+            (first_phase, first_duration - cycle_offset)
+        } else {
+            (
+                second_phase,
+                second_duration - (cycle_offset - first_duration),
+            )
+        };
+
+        self.snapshot.phase = phase;
+        self.snapshot.seconds_remaining = ceil_seconds(remaining_ms);
+        self.snapshot.skip_confirmation = SkipConfirmationState::None;
+        self.deadline_ms = Some(now_ms.saturating_add(remaining_ms));
+        self.paused_remaining_ms = 0;
+        self.snapshot != before
+    }
+
     fn current_remaining_ms(&self, now_ms: u64) -> u64 {
+        if let Some(remaining_ms) = self.suspended_remaining_ms {
+            return remaining_ms;
+        }
         match self.snapshot.phase {
             TimerPhase::Paused => self.paused_remaining_ms,
             TimerPhase::Working | TimerPhase::Resting => self
@@ -350,12 +417,33 @@ mod tests {
     }
 
     #[test]
+    fn color_scheme_uses_stable_serialized_identifiers() {
+        for (scheme, identifier) in [
+            (ColorScheme::Original, "\"original\""),
+            (ColorScheme::MorningLake, "\"morning_lake\""),
+            (ColorScheme::GraphiteLime, "\"graphite_lime\""),
+            (ColorScheme::MistBlueCoral, "\"mist_blue_coral\""),
+            (ColorScheme::PorcelainForest, "\"porcelain_forest\""),
+        ] {
+            assert_eq!(
+                serde_json::to_string(&scheme).expect("serialize color scheme"),
+                identifier
+            );
+        }
+        assert_eq!(
+            serde_json::from_str::<ColorScheme>("\"original\"").expect("deserialize color scheme"),
+            ColorScheme::Original
+        );
+    }
+
+    #[test]
     fn defaults_follow_the_twenty_twenty_rule() {
         let settings = AppSettings::default();
         assert_eq!(settings.work_minutes, 20);
         assert_eq!(settings.rest_seconds, 20);
         assert!(settings.skip_confirmation);
         assert_eq!(settings.sleep_policy, SleepPolicy::RestartCycle);
+        assert_eq!(settings.color_scheme, ColorScheme::MistBlueCoral);
     }
 
     #[test]
@@ -444,6 +532,84 @@ mod tests {
         real_time.dispatch(TimerAction::Start, 0);
         real_time.dispatch(TimerAction::Sleep, 20_000);
         real_time.dispatch(TimerAction::Wake, 90_000);
-        assert_eq!(real_time.snapshot().phase, TimerPhase::Resting);
+        assert_eq!(real_time.snapshot().phase, TimerPhase::Working);
+        assert_eq!(real_time.snapshot().seconds_remaining, 50);
+    }
+
+    #[test]
+    fn real_time_policy_updates_within_the_current_phase() {
+        let mut engine = TimerEngine::new(AppSettings {
+            work_minutes: 1,
+            rest_seconds: 20,
+            sleep_policy: SleepPolicy::RealTime,
+            ..AppSettings::default()
+        });
+        engine.dispatch(TimerAction::Start, 0);
+        engine.dispatch(TimerAction::Sleep, 20_000);
+        engine.dispatch(TimerAction::Wake, 40_000);
+
+        assert_eq!(engine.snapshot().phase, TimerPhase::Working);
+        assert_eq!(engine.snapshot().seconds_remaining, 20);
+    }
+
+    #[test]
+    fn real_time_policy_catches_up_across_multiple_phases() {
+        let mut engine = TimerEngine::new(AppSettings {
+            work_minutes: 1,
+            rest_seconds: 20,
+            sleep_policy: SleepPolicy::RealTime,
+            ..AppSettings::default()
+        });
+        engine.dispatch(TimerAction::Start, 0);
+        engine.dispatch(TimerAction::Sleep, 20_000);
+        engine.dispatch(TimerAction::Wake, 200_000);
+
+        assert_eq!(engine.snapshot().phase, TimerPhase::Working);
+        assert_eq!(engine.snapshot().seconds_remaining, 20);
+    }
+
+    #[test]
+    fn real_time_policy_catches_up_from_a_rest_phase() {
+        let mut engine = TimerEngine::new(AppSettings {
+            work_minutes: 1,
+            rest_seconds: 20,
+            sleep_policy: SleepPolicy::RealTime,
+            ..AppSettings::default()
+        });
+        engine.dispatch(TimerAction::Start, 0);
+        engine.dispatch(TimerAction::Tick, 60_000);
+        engine.dispatch(TimerAction::Sleep, 65_000);
+        engine.dispatch(TimerAction::Wake, 230_000);
+
+        assert_eq!(engine.snapshot().phase, TimerPhase::Resting);
+        assert_eq!(engine.snapshot().seconds_remaining, 10);
+    }
+
+    #[test]
+    fn pause_resume_policy_freezes_ticks_while_the_session_is_inactive() {
+        let mut engine = TimerEngine::new(AppSettings {
+            work_minutes: 1,
+            sleep_policy: SleepPolicy::PauseResume,
+            ..AppSettings::default()
+        });
+        engine.dispatch(TimerAction::Start, 0);
+        assert!(engine.dispatch(TimerAction::Sleep, 20_000));
+        assert!(!engine.dispatch(TimerAction::Tick, 90_000));
+        assert_eq!(engine.snapshot().phase, TimerPhase::Working);
+        assert_eq!(engine.snapshot().seconds_remaining, 40);
+
+        assert!(engine.dispatch(TimerAction::Wake, 90_000));
+        engine.dispatch(TimerAction::Tick, 100_000);
+        assert_eq!(engine.snapshot().seconds_remaining, 30);
+    }
+
+    #[test]
+    fn duplicate_suspend_and_resume_events_are_ignored() {
+        let mut engine = engine_with_short_cycle();
+        engine.dispatch(TimerAction::Start, 0);
+        assert!(engine.dispatch(TimerAction::Sleep, 20_000));
+        assert!(!engine.dispatch(TimerAction::Sleep, 21_000));
+        assert!(engine.dispatch(TimerAction::Wake, 90_000));
+        assert!(!engine.dispatch(TimerAction::Wake, 91_000));
     }
 }

@@ -95,6 +95,7 @@ pub fn save_widget_position(path: &Path, position: WidgetPosition) -> Result<(),
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::ColorScheme;
 
     #[test]
     fn corrupted_settings_are_backed_up_and_recovered() {
@@ -113,10 +114,41 @@ mod tests {
         let path = directory.path().join("nested/settings.json");
         let settings = AppSettings {
             work_minutes: 42,
+            color_scheme: ColorScheme::PorcelainForest,
             ..AppSettings::default()
         };
         save_settings(&path, &settings).expect("save settings");
-        assert_eq!(load_settings(&path).0.work_minutes, 42);
+        let restored = load_settings(&path).0;
+        assert_eq!(restored.work_minutes, 42);
+        assert_eq!(restored.color_scheme, ColorScheme::PorcelainForest);
+    }
+
+    #[test]
+    fn legacy_settings_without_color_scheme_load_with_the_current_default() {
+        let directory = tempfile::tempdir().expect("temp directory");
+        let path = directory.path().join("settings.json");
+        fs::write(
+            &path,
+            r#"{
+              "version": 1,
+              "workMinutes": 20,
+              "restSeconds": 20,
+              "skipConfirmation": true,
+              "sleepPolicy": "restart_cycle",
+              "language": "system",
+              "theme": "system",
+              "soundEnabled": true,
+              "notificationEnabled": true,
+              "launchAtLogin": false,
+              "widgetVisible": true,
+              "breakMessage": "请眺望远方。"
+            }"#,
+        )
+        .expect("write legacy settings");
+
+        let (settings, error) = load_settings(&path);
+        assert!(error.is_none());
+        assert_eq!(settings.color_scheme, ColorScheme::MistBlueCoral);
     }
 
     #[test]

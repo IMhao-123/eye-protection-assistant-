@@ -2,7 +2,21 @@ export type TimerPhase = "idle" | "working" | "paused" | "resting";
 export type SleepPolicy = "restart_cycle" | "pause_resume" | "real_time";
 export type AppLanguage = "system" | "zh" | "en";
 export type ThemePreference = "system" | "light" | "dark";
+export type ColorScheme =
+  | "original"
+  | "morning_lake"
+  | "graphite_lime"
+  | "mist_blue_coral"
+  | "porcelain_forest";
 export type SkipConfirmationState = "none" | "pending";
+
+export const AVAILABLE_COLOR_SCHEMES = [
+  "original",
+  "morning_lake",
+  "graphite_lime",
+  "mist_blue_coral",
+  "porcelain_forest",
+] as const satisfies readonly ColorScheme[];
 
 export interface AppSettings {
   version: number;
@@ -12,6 +26,7 @@ export interface AppSettings {
   sleepPolicy: SleepPolicy;
   language: AppLanguage;
   theme: ThemePreference;
+  colorScheme: ColorScheme;
   soundEnabled: boolean;
   notificationEnabled: boolean;
   launchAtLogin: boolean;
@@ -53,6 +68,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sleepPolicy: "restart_cycle",
   language: "system",
   theme: "system",
+  colorScheme: "mist_blue_coral",
   soundEnabled: true,
   notificationEnabled: true,
   launchAtLogin: false,

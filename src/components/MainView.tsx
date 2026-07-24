@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 import { formatTime } from "../format";
 import { getTranslation } from "../i18n";
-import type { AppSettings, AppSnapshot, TimerAction } from "../types";
+import { AVAILABLE_COLOR_SCHEMES } from "../types";
+import type { AppSettings, AppSnapshot, ColorScheme, TimerAction } from "../types";
 
 type Section = "overview" | "reminder" | "break" | "sound" | "appearance" | "system";
 
@@ -167,7 +168,73 @@ function SoundSettings({ settings, update, t }: SettingsProps) {
 }
 
 function AppearanceSettings({ settings, update, t }: SettingsProps) {
-  return <div className="page settings-page"><SectionHeader title={t.appearance} description="使用系统字体和柔和自然色，自动适配减少动态效果。" /><label className="field field--full"><span>{t.theme}</span><div className="segmented">{(["system", "light", "dark"] as const).map((value) => <button key={value} className={settings.theme === value ? "is-selected" : ""} onClick={() => void update({ ...settings, theme: value })}>{value === "system" ? t.followSystem : value === "light" ? t.light : t.dark}</button>)}</div></label><label className="field field--full"><span>{t.language}</span><div className="segmented">{(["system", "zh", "en"] as const).map((value) => <button key={value} className={settings.language === value ? "is-selected" : ""} onClick={() => void update({ ...settings, language: value })}>{value === "system" ? t.followSystem : value === "zh" ? t.chinese : t.english}</button>)}</div></label><AutoSave t={t} /></div>;
+  const schemeLabels: Record<ColorScheme, string> = {
+    original: t.originalColorScheme,
+    morning_lake: t.morningLake,
+    graphite_lime: t.graphiteLime,
+    mist_blue_coral: t.mistBlueCoral,
+    porcelain_forest: t.porcelainForest,
+  };
+
+  return (
+    <div className="page settings-page">
+      <SectionHeader title={t.appearance} description="使用系统字体和柔和自然色，自动适配减少动态效果。" />
+      <div className="field field--full">
+        <span>{t.colorScheme}</span>
+        <div className="palette-picker" role="group" aria-label={t.colorScheme}>
+          {AVAILABLE_COLOR_SCHEMES.map((value) => (
+            <button
+              key={value}
+              type="button"
+              className="palette-option"
+              aria-pressed={settings.colorScheme === value}
+              onClick={() => void update({ ...settings, colorScheme: value })}
+            >
+              <span className={`palette-swatch palette-swatch--${value}`} aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span>{schemeLabels[value]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="field field--full">
+        <span>{t.theme}</span>
+        <div className="segmented">
+          {(["system", "light", "dark"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={settings.theme === value ? "is-selected" : ""}
+              aria-pressed={settings.theme === value}
+              onClick={() => void update({ ...settings, theme: value })}
+            >
+              {value === "system" ? t.followSystem : value === "light" ? t.light : t.dark}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="field field--full">
+        <span>{t.language}</span>
+        <div className="segmented">
+          {(["system", "zh", "en"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={settings.language === value ? "is-selected" : ""}
+              aria-pressed={settings.language === value}
+              onClick={() => void update({ ...settings, language: value })}
+            >
+              {value === "system" ? t.followSystem : value === "zh" ? t.chinese : t.english}
+            </button>
+          ))}
+        </div>
+      </div>
+      <AutoSave t={t} />
+    </div>
+  );
 }
 
 function SystemSettings({ settings, update, t }: SettingsProps) {

@@ -1,5 +1,8 @@
 mod domain;
+mod macos_window;
 mod persistence;
+mod system_events;
+mod window_state;
 
 use std::{
     path::PathBuf,
@@ -16,8 +19,16 @@ use tauri::{
     WindowEvent,
 };
 use tauri_plugin_notification::NotificationExt;
+use window_state::{DisplayEvent, WindowCoordinator, WindowPlan};
 
 const SNAPSHOT_EVENT: &str = "app://snapshot-changed";
+
+struct TimerActionOutcome {
+    snapshot: AppSnapshot,
+    previous_phase: TimerPhase,
+    display_event: Option<DisplayEvent>,
+    settings_changed: bool,
+}
 
 struct RuntimeState {
     engine: Mutex<TimerEngine>,
@@ -28,7 +39,7 @@ struct RuntimeState {
     tray_action: Mutex<Option<MenuItem<tauri::Wry>>>,
     tray_stop: Mutex<Option<MenuItem<tauri::Wry>>>,
     tray_widget: Mutex<Option<MenuItem<tauri::Wry>>>,
-    last_tick_ms: Mutex<u64>,
+    windows: Mutex<WindowCoordinator>,
 }
 
 impl Default for RuntimeState {
@@ -42,7 +53,7 @@ impl Default for RuntimeState {
             tray_action: Mutex::new(None),
             tray_stop: Mutex::new(None),
             tray_widget: Mutex::new(None),
-            last_tick_ms: Mutex::new(now_ms()),
+            windows: Mutex::new(WindowCoordinator::default()),
         }
     }
 }
@@ -62,19 +73,14 @@ fn dispatch_timer_action(
     state: tauri::State<'_, RuntimeState>,
     action: TimerAction,
 ) -> Result<AppSnapshot, String> {
-    let (snapshot, previous_phase, changed) = {
-        let mut engine = state
-            .engine
-            .lock()
-            .map_err(|_| "计时状态暂时不可用".to_string())?;
-        let previous_phase = engine.snapshot().phase;
-        let changed = engine.dispatch(action, now_ms());
-        (engine.snapshot(), previous_phase, changed)
-    };
-    if changed {
-        publish_snapshot(&app, &snapshot, previous_phase, false);
+    let outcome = apply_timer_action(&state, action, now_ms())?;
+    if outcome.settings_changed {
+        persist_snapshot_settings(&state, &outcome.snapshot)?;
     }
-    Ok(snapshot)
+    if let Some(event) = outcome.display_event {
+        publish_snapshot(&app, &outcome.snapshot, outcome.previous_phase, Some(event));
+    }
+    Ok(outcome.snapshot)
 }
 
 #[tauri::command]
@@ -104,7 +110,11 @@ fn update_settings(
     {
         persistence::save_settings(&path, &snapshot.settings)?;
     }
-    publish_snapshot(&app, &snapshot, snapshot.phase, widget_visibility_changed);
+    let display_event = widget_visibility_changed.then_some(DisplayEvent::SetWidgetVisibility {
+        visible: snapshot.settings.widget_visible,
+        phase: snapshot.phase,
+    });
+    publish_snapshot(&app, &snapshot, snapshot.phase, display_event);
     Ok(snapshot)
 }
 
@@ -125,14 +135,19 @@ fn set_widget_visibility(
         engine.snapshot()
     };
     persist_snapshot_settings(&state, &snapshot)?;
-    publish_snapshot(&app, &snapshot, snapshot.phase, true);
+    publish_snapshot(
+        &app,
+        &snapshot,
+        snapshot.phase,
+        Some(DisplayEvent::SetWidgetVisibility {
+            visible,
+            phase: snapshot.phase,
+        }),
+    );
     Ok(snapshot)
 }
 
-fn persist_snapshot_settings(
-    state: &tauri::State<'_, RuntimeState>,
-    snapshot: &AppSnapshot,
-) -> Result<(), String> {
+fn persist_snapshot_settings(state: &RuntimeState, snapshot: &AppSnapshot) -> Result<(), String> {
     if let Some(path) = state
         .settings_path
         .lock()
@@ -146,11 +161,14 @@ fn persist_snapshot_settings(
 
 #[tauri::command]
 fn show_main_window(app: AppHandle) -> Result<(), String> {
-    let window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "主窗口不存在".to_string())?;
-    window.show().map_err(|error| error.to_string())?;
-    window.set_focus().map_err(|error| error.to_string())
+    let state = app.state::<RuntimeState>();
+    let snapshot = state
+        .engine
+        .lock()
+        .map_err(|_| "计时状态暂时不可用".to_string())?
+        .snapshot();
+    apply_display_event(&state, DisplayEvent::ShowMain)?;
+    sync_windows(&app, &snapshot)
 }
 
 #[tauri::command]
@@ -168,24 +186,70 @@ fn now_ms() -> u64 {
 
 fn perform_action(app: &AppHandle, action: TimerAction) {
     let state = app.state::<RuntimeState>();
-    let current_time = now_ms();
-    let result = state.engine.lock().map(|mut engine| {
-        let previous = engine.snapshot().phase;
-        let mut changed = false;
-        if action == TimerAction::Tick {
-            if let Ok(mut last_tick) = state.last_tick_ms.lock() {
-                if current_time.saturating_sub(*last_tick) > 5_000 {
-                    changed |= engine.dispatch(TimerAction::Sleep, *last_tick);
-                    changed |= engine.dispatch(TimerAction::Wake, current_time);
+    match apply_timer_action(&state, action, now_ms()) {
+        Ok(outcome) => {
+            if outcome.settings_changed {
+                if let Err(error) = persist_snapshot_settings(&state, &outcome.snapshot) {
+                    eprintln!("failed to save widget preference: {error}");
                 }
-                *last_tick = current_time;
+            }
+            if let Some(event) = outcome.display_event {
+                publish_snapshot(app, &outcome.snapshot, outcome.previous_phase, Some(event));
             }
         }
-        changed |= engine.dispatch(action, current_time);
-        (engine.snapshot(), previous, changed)
+        Err(error) => eprintln!("failed to update timer: {error}"),
+    }
+}
+
+fn apply_timer_action(
+    state: &RuntimeState,
+    action: TimerAction,
+    current_time: u64,
+) -> Result<TimerActionOutcome, String> {
+    let mut engine = state
+        .engine
+        .lock()
+        .map_err(|_| "计时状态暂时不可用".to_string())?;
+    let previous_phase = engine.snapshot().phase;
+    let changed = engine.dispatch(action, current_time);
+    let display_event = changed.then(|| DisplayEvent::Timer {
+        action,
+        previous_phase,
+        next_phase: engine.snapshot().phase,
     });
-    if let Ok((snapshot, previous, true)) = result {
-        publish_snapshot(app, &snapshot, previous, false);
+    let settings_changed = display_event
+        .filter(|event| event.requests_widget_visibility())
+        .map(|_| {
+            let mut settings = engine.snapshot().settings;
+            if settings.widget_visible {
+                false
+            } else {
+                settings.widget_visible = true;
+                engine.update_settings(settings, current_time)
+            }
+        })
+        .unwrap_or(false);
+    let snapshot = engine.snapshot();
+    Ok(TimerActionOutcome {
+        snapshot,
+        previous_phase,
+        display_event,
+        settings_changed,
+    })
+}
+
+fn handle_system_event(app: &AppHandle, event: system_events::SystemEvent) {
+    if let Some(action) = system_events::timer_action(event) {
+        perform_action(app, action);
+        return;
+    }
+
+    let state = app.state::<RuntimeState>();
+    let snapshot = state.engine.lock().map(|engine| engine.snapshot());
+    if let Ok(snapshot) = snapshot {
+        if let Err(error) = sync_windows(app, &snapshot) {
+            eprintln!("failed to react to display configuration change: {error}");
+        }
     }
 }
 
@@ -193,9 +257,15 @@ fn publish_snapshot(
     app: &AppHandle,
     snapshot: &AppSnapshot,
     previous_phase: TimerPhase,
-    widget_visibility_changed: bool,
+    display_event: Option<DisplayEvent>,
 ) {
     let state = app.state::<RuntimeState>();
+    let should_sync_windows = display_event.is_some_and(DisplayEvent::requires_window_sync);
+    if let Some(event) = display_event {
+        if let Err(error) = apply_display_event(&state, event) {
+            eprintln!("failed to update window state: {error}");
+        }
+    }
     if let Ok(status) = state.tray_status.lock() {
         if let Some(status) = status.as_ref() {
             if let Err(error) = status.set_text(tray_status_text(snapshot)) {
@@ -207,8 +277,10 @@ fn publish_snapshot(
     if let Err(error) = app.emit(SNAPSHOT_EVENT, snapshot) {
         eprintln!("failed to emit snapshot: {error}");
     }
-    if let Err(error) = sync_windows(app, snapshot, previous_phase, widget_visibility_changed) {
-        eprintln!("failed to synchronize windows: {error}");
+    if should_sync_windows {
+        if let Err(error) = sync_windows(app, snapshot) {
+            eprintln!("failed to synchronize windows: {error}");
+        }
     }
     if snapshot.phase != previous_phase && snapshot.settings.notification_enabled {
         let (title, body) = match snapshot.phase {
@@ -226,31 +298,26 @@ fn publish_snapshot(
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MainWindowDirective {
-    Show,
-    Hide,
-    Keep,
+fn apply_display_event(
+    state: &tauri::State<'_, RuntimeState>,
+    event: DisplayEvent,
+) -> Result<(), String> {
+    state
+        .windows
+        .lock()
+        .map(|mut windows| windows.apply(event))
+        .map_err(|_| "窗口状态暂时不可用".to_string())
 }
 
-fn main_window_directive(
-    snapshot: &AppSnapshot,
-    previous_phase: TimerPhase,
-    widget_visibility_changed: bool,
-) -> MainWindowDirective {
-    match snapshot.phase {
-        TimerPhase::Idle => MainWindowDirective::Show,
-        TimerPhase::Resting => MainWindowDirective::Hide,
-        TimerPhase::Working | TimerPhase::Paused if widget_visibility_changed => {
-            if snapshot.settings.widget_visible {
-                MainWindowDirective::Hide
-            } else {
-                MainWindowDirective::Show
-            }
-        }
-        TimerPhase::Working if previous_phase != TimerPhase::Working => MainWindowDirective::Hide,
-        TimerPhase::Working | TimerPhase::Paused => MainWindowDirective::Keep,
-    }
+fn current_window_plan(
+    state: &tauri::State<'_, RuntimeState>,
+    phase: TimerPhase,
+) -> Result<WindowPlan, String> {
+    state
+        .windows
+        .lock()
+        .map(|windows| windows.plan(phase))
+        .map_err(|_| "窗口状态暂时不可用".to_string())
 }
 
 struct TrayMenuPresentation {
@@ -328,6 +395,7 @@ fn ensure_widget(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
     .max_inner_size(248.0, 72.0)
     .decorations(false)
     .transparent(true)
+    .shadow(false)
     .resizable(false)
     .always_on_top(true)
     .skip_taskbar(true)
@@ -347,17 +415,32 @@ fn ensure_widget(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
 
 fn clamp_widget_window(window: &tauri::WebviewWindow) -> Result<(), String> {
     let position = window.outer_position().map_err(|error| error.to_string())?;
-    let screens = window
+    let available = window
         .available_monitors()
-        .map_err(|error| error.to_string())?
-        .into_iter()
-        .map(|monitor| ScreenRect {
+        .map_err(|error| error.to_string())?;
+    let primary = window
+        .primary_monitor()
+        .map_err(|error| error.to_string())?;
+    let mut screens = Vec::with_capacity(available.len());
+    if let Some(monitor) = primary {
+        screens.push(ScreenRect {
             x: monitor.position().x,
             y: monitor.position().y,
             width: monitor.size().width,
             height: monitor.size().height,
-        })
-        .collect::<Vec<_>>();
+        });
+    }
+    for monitor in available {
+        let screen = ScreenRect {
+            x: monitor.position().x,
+            y: monitor.position().y,
+            width: monitor.size().width,
+            height: monitor.size().height,
+        };
+        if !screens.contains(&screen) {
+            screens.push(screen);
+        }
+    }
     let clamped = persistence::clamp_widget_position(
         WidgetPosition {
             x: position.x,
@@ -375,84 +458,92 @@ fn clamp_widget_window(window: &tauri::WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 
-fn sync_windows(
-    app: &AppHandle,
-    snapshot: &AppSnapshot,
-    previous_phase: TimerPhase,
-    widget_visibility_changed: bool,
-) -> Result<(), String> {
+fn sync_windows(app: &AppHandle, snapshot: &AppSnapshot) -> Result<(), String> {
+    let state = app.state::<RuntimeState>();
+    let plan = current_window_plan(&state, snapshot.phase)?;
     let widget = ensure_widget(app)?;
-    let show_widget = matches!(snapshot.phase, TimerPhase::Working | TimerPhase::Paused)
-        && snapshot.settings.widget_visible;
-    if show_widget {
+    let main = app.get_webview_window("main");
+
+    if plan.show_break {
+        widget.hide().map_err(|error| error.to_string())?;
+        if let Some(main) = main.as_ref() {
+            main.hide().map_err(|error| error.to_string())?;
+        }
+        show_break_windows(app, main.as_ref())?;
+        return Ok(());
+    }
+
+    close_extra_break_windows(app, 0);
+    if plan.show_main {
+        widget.hide().map_err(|error| error.to_string())?;
+        if let Some(main) = main.as_ref() {
+            main.show().map_err(|error| error.to_string())?;
+            main.set_focus().map_err(|error| error.to_string())?;
+        }
+    } else if plan.show_widget {
+        if let Some(main) = main.as_ref() {
+            main.hide().map_err(|error| error.to_string())?;
+        }
         clamp_widget_window(&widget)?;
         widget.set_always_on_top(true).map_err(|e| e.to_string())?;
-        widget.show().map_err(|e| e.to_string())?;
+        widget
+            .set_visible_on_all_workspaces(true)
+            .map_err(|e| e.to_string())?;
+        macos_window::present_widget_window(&widget)?;
     } else {
         widget.hide().map_err(|e| e.to_string())?;
-    }
-
-    if let Some(main) = app.get_webview_window("main") {
-        match main_window_directive(snapshot, previous_phase, widget_visibility_changed) {
-            MainWindowDirective::Show => {
-                main.show().map_err(|error| error.to_string())?;
-                main.set_focus().map_err(|error| error.to_string())?;
-            }
-            MainWindowDirective::Hide => {
-                main.hide().map_err(|error| error.to_string())?;
-            }
-            MainWindowDirective::Keep => {}
-        }
-    }
-
-    if snapshot.phase == TimerPhase::Resting {
-        if let Some(main) = app.get_webview_window("main") {
+        if let Some(main) = main.as_ref() {
             main.hide().map_err(|error| error.to_string())?;
-            let monitors = main
-                .available_monitors()
-                .map_err(|error| error.to_string())?;
-            for (index, monitor) in monitors.iter().enumerate() {
-                let label = format!("break-{index}");
-                let window = if let Some(window) = app.get_webview_window(&label) {
-                    window
-                } else {
-                    WebviewWindowBuilder::new(
-                        app,
-                        &label,
-                        WebviewUrl::App(format!("index.html?view=break&monitor={index}").into()),
-                    )
-                    .title("护眼休息")
-                    .decorations(false)
-                    .resizable(false)
-                    .always_on_top(true)
-                    .skip_taskbar(true)
-                    .visible(false)
-                    .build()
-                    .map_err(|error| error.to_string())?
-                };
-                window
-                    .set_position(PhysicalPosition::new(
-                        monitor.position().x,
-                        monitor.position().y,
-                    ))
-                    .map_err(|error| error.to_string())?;
-                window
-                    .set_size(PhysicalSize::new(
-                        monitor.size().width,
-                        monitor.size().height,
-                    ))
-                    .map_err(|error| error.to_string())?;
-                window
-                    .set_visible_on_all_workspaces(true)
-                    .map_err(|error| error.to_string())?;
-                window.show().map_err(|error| error.to_string())?;
-                window.set_focus().map_err(|error| error.to_string())?;
-            }
-            close_extra_break_windows(app, monitors.len());
         }
-    } else {
-        close_extra_break_windows(app, 0);
     }
+    Ok(())
+}
+
+fn show_break_windows(app: &AppHandle, main: Option<&tauri::WebviewWindow>) -> Result<(), String> {
+    let monitors = if let Some(main) = main {
+        main.available_monitors()
+            .map_err(|error| error.to_string())?
+    } else {
+        return Err("主窗口不存在，无法读取显示器".to_string());
+    };
+    for (index, monitor) in monitors.iter().enumerate() {
+        let label = format!("break-{index}");
+        let window = if let Some(window) = app.get_webview_window(&label) {
+            window
+        } else {
+            WebviewWindowBuilder::new(
+                app,
+                &label,
+                WebviewUrl::App(format!("index.html?view=break&monitor={index}").into()),
+            )
+            .title("护眼休息")
+            .decorations(false)
+            .shadow(false)
+            .resizable(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .visible(false)
+            .build()
+            .map_err(|error| error.to_string())?
+        };
+        window
+            .set_position(PhysicalPosition::new(
+                monitor.position().x,
+                monitor.position().y,
+            ))
+            .map_err(|error| error.to_string())?;
+        window
+            .set_size(PhysicalSize::new(
+                monitor.size().width,
+                monitor.size().height,
+            ))
+            .map_err(|error| error.to_string())?;
+        window
+            .set_visible_on_all_workspaces(true)
+            .map_err(|error| error.to_string())?;
+        macos_window::present_break_window(&window)?;
+    }
+    close_extra_break_windows(app, monitors.len());
     Ok(())
 }
 
@@ -518,7 +609,15 @@ fn configure_tray(app: &mut tauri::App) -> tauri::Result<()> {
                     if let Err(error) = persist_snapshot_settings(&state, &snapshot) {
                         eprintln!("failed to save widget preference: {error}");
                     }
-                    publish_snapshot(app, &snapshot, snapshot.phase, true);
+                    publish_snapshot(
+                        app,
+                        &snapshot,
+                        snapshot.phase,
+                        Some(DisplayEvent::SetWidgetVisibility {
+                            visible: snapshot.settings.widget_visible,
+                            phase: snapshot.phase,
+                        }),
+                    );
                 };
             }
             "quit" => app.exit(0),
@@ -584,11 +683,13 @@ pub fn run() {
             }
             ensure_widget(app.handle()).map_err(std::io::Error::other)?;
             configure_tray(app)?;
+            system_events::register(app.handle());
             let state = app.state::<RuntimeState>();
             if let Ok(engine) = state.engine.lock() {
                 let snapshot = engine.snapshot();
                 drop(engine);
-                publish_snapshot(app.handle(), &snapshot, snapshot.phase, false);
+                publish_snapshot(app.handle(), &snapshot, snapshot.phase, None);
+                sync_windows(app.handle(), &snapshot).map_err(std::io::Error::other)?;
             }
 
             let handle = app.handle().clone();
@@ -603,8 +704,18 @@ pub fn run() {
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { api, .. } if window.label() == "main" => {
                 api.prevent_close();
-                if let Err(error) = window.hide() {
-                    eprintln!("failed to hide main window: {error}");
+                let state = window.state::<RuntimeState>();
+                let snapshot = state.engine.lock().map(|engine| engine.snapshot());
+                if let Ok(snapshot) = snapshot {
+                    let event = DisplayEvent::CloseMain {
+                        phase: snapshot.phase,
+                        widget_enabled: snapshot.settings.widget_visible,
+                    };
+                    if let Err(error) = apply_display_event(&state, event)
+                        .and_then(|_| sync_windows(window.app_handle(), &snapshot))
+                    {
+                        eprintln!("failed to close main window cleanly: {error}");
+                    }
                 }
             }
             WindowEvent::Moved(position) if window.label() == "widget" => {
@@ -653,27 +764,6 @@ mod tests {
     }
 
     #[test]
-    fn main_window_follows_explicit_widget_choice_without_tick_flicker() {
-        let mut snapshot = TimerEngine::new(AppSettings::default()).snapshot();
-        snapshot.phase = TimerPhase::Working;
-
-        assert_eq!(
-            main_window_directive(&snapshot, TimerPhase::Idle, false),
-            MainWindowDirective::Hide
-        );
-        assert_eq!(
-            main_window_directive(&snapshot, TimerPhase::Working, false),
-            MainWindowDirective::Keep
-        );
-
-        snapshot.settings.widget_visible = false;
-        assert_eq!(
-            main_window_directive(&snapshot, TimerPhase::Working, true),
-            MainWindowDirective::Show
-        );
-    }
-
-    #[test]
     fn tray_uses_one_unambiguous_context_action() {
         let mut snapshot = TimerEngine::new(AppSettings::default()).snapshot();
         assert_eq!(tray_menu_presentation(&snapshot).action_text, "开始专注");
@@ -698,5 +788,35 @@ mod tests {
     fn tray_template_icon_is_packaged_and_decodable() {
         let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/trayTemplate.png"));
         assert!(icon.is_ok());
+    }
+
+    #[test]
+    fn start_and_resume_align_the_persisted_widget_setting() {
+        let state = RuntimeState::default();
+        {
+            let mut engine = state.engine.lock().expect("timer engine");
+            let mut settings = engine.snapshot().settings;
+            settings.widget_visible = false;
+            engine.update_settings(settings, 0);
+        }
+
+        let started = apply_timer_action(&state, TimerAction::Start, 0).expect("start timer");
+        assert!(started.settings_changed);
+        assert!(started.snapshot.settings.widget_visible);
+        assert_eq!(
+            tray_menu_presentation(&started.snapshot).widget_text,
+            "隐藏计时胶囊"
+        );
+
+        apply_timer_action(&state, TimerAction::Pause, 1_000).expect("pause timer");
+        {
+            let mut engine = state.engine.lock().expect("timer engine");
+            let mut settings = engine.snapshot().settings;
+            settings.widget_visible = false;
+            engine.update_settings(settings, 1_000);
+        }
+        let resumed = apply_timer_action(&state, TimerAction::Resume, 2_000).expect("resume timer");
+        assert!(resumed.settings_changed);
+        assert!(resumed.snapshot.settings.widget_visible);
     }
 }

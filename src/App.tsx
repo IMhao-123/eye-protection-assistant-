@@ -10,11 +10,13 @@ export default function App() {
   const controller = useAppController();
   const { snapshot, dispatch } = controller;
   const theme = snapshot.settings.theme;
+  const colorScheme = snapshot.settings.colorScheme;
   const view = resolveViewMode(window.location.search);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-  }, [theme]);
+    document.documentElement.dataset.colorScheme = colorScheme;
+  }, [colorScheme, theme]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

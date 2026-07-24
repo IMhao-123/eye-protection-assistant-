@@ -12,7 +12,14 @@ describe("window view surface", () => {
   });
 
   it("marks the document before rendering the widget", () => {
+    const root = document.createElement("div");
+    root.id = "root";
+    document.body.append(root);
     applyDocumentSurface("widget", document);
     expect(document.documentElement.dataset.view).toBe("widget");
+    expect(document.documentElement.style.backgroundColor).toBe("transparent");
+    expect(document.body.style.backgroundColor).toBe("transparent");
+    expect(root.style.backgroundColor).toBe("transparent");
+    root.remove();
   });
 });
