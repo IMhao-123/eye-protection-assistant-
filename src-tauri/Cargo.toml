@@ -1,6 +1,6 @@
 [package]
 name = "eye-care-assistant"
-version = "0.1.0"
+version = "0.2.0"
 description = "A calm, reliable macOS eye-care reminder"
 authors = ["Builder Studio"]
 edition = "2021"
