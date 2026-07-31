@@ -23,8 +23,11 @@ src-tauri/binaries/
 *.app
 *.dmg
 *.dmg.sha256
+*.exe
+*.msi
+*.exe.sha256
 
-# ── macOS 系统垃圾 ────────────────────────────
+# ── 系统垃圾 ──────────────────────────────────
 .DS_Store
 .AppleDouble
 .LSOverride
@@ -35,6 +38,8 @@ src-tauri/binaries/
 .Trashes
 .fseventsd
 .DocumentRevisions-V100
+Thumbs.db
+Desktop.ini
 
 # ── 编辑器 / IDE ──────────────────────────────
 .vscode/

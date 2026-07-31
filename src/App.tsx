@@ -3,6 +3,10 @@ import { appBridge } from "./bridge";
 import { BreakView } from "./components/BreakView";
 import { MainView } from "./components/MainView";
 import { WidgetView } from "./components/WidgetView";
+import {
+  isEditingTarget,
+  resolveKeyboardCommand,
+} from "./keyboardShortcuts";
 import { useAppController } from "./useAppController";
 import { resolveViewMode } from "./viewSurface";
 
@@ -20,23 +24,30 @@ export default function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const editing = (event.target as HTMLElement | null)?.matches("input, textarea, select");
-      if (event.metaKey && event.key === ",") {
-        event.preventDefault();
-        void appBridge.showMainWindow();
-      } else if (
-        !editing &&
-        (event.key === " " || (event.metaKey && event.key.toLowerCase() === "p")) &&
-        (snapshot.phase === "working" || snapshot.phase === "paused")
-      ) {
-        event.preventDefault();
-        void dispatch("toggle_pause");
-      } else if (event.key === "Escape" && snapshot.skipConfirmation === "pending") {
-        event.preventDefault();
-        void dispatch("cancel_skip");
-      } else if (event.metaKey && event.key.toLowerCase() === "q") {
-        event.preventDefault();
-        void appBridge.quit();
+      const command = resolveKeyboardCommand({
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        editing: isEditingTarget(event.target),
+        phase: snapshot.phase,
+        skipConfirmation: snapshot.skipConfirmation,
+      });
+      if (!command) return;
+
+      event.preventDefault();
+      switch (command) {
+        case "show_main":
+          void appBridge.showMainWindow();
+          break;
+        case "toggle_pause":
+          void dispatch("toggle_pause");
+          break;
+        case "cancel_skip":
+          void dispatch("cancel_skip");
+          break;
+        case "quit":
+          void appBridge.quit();
+          break;
       }
     };
     window.addEventListener("keydown", onKeyDown);

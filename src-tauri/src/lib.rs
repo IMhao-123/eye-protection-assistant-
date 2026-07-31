@@ -1,8 +1,8 @@
 mod domain;
-mod macos_window;
 mod persistence;
 mod system_events;
 mod window_state;
+mod windows_window;
 
 use std::{
     path::PathBuf,
@@ -22,6 +22,8 @@ use tauri_plugin_notification::NotificationExt;
 use window_state::{DisplayEvent, WindowCoordinator, WindowPlan};
 
 const SNAPSHOT_EVENT: &str = "app://snapshot-changed";
+const WIDGET_LOGICAL_WIDTH: u32 = 248;
+const WIDGET_LOGICAL_HEIGHT: u32 = 72;
 
 struct TimerActionOutcome {
     snapshot: AppSnapshot,
@@ -238,6 +240,7 @@ fn apply_timer_action(
     })
 }
 
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 fn handle_system_event(app: &AppHandle, event: system_events::SystemEvent) {
     if let Some(action) = system_events::timer_action(event) {
         perform_action(app, action);
@@ -380,28 +383,44 @@ fn tray_status_text(snapshot: &AppSnapshot) -> String {
     }
 }
 
+fn tray_icon_is_template() -> bool {
+    false
+}
+
+fn should_show_main_for_second_instance(phase: TimerPhase) -> bool {
+    phase != TimerPhase::Resting
+}
+
+fn handle_second_instance(app: &AppHandle) {
+    let state = app.state::<RuntimeState>();
+    let phase = state.engine.lock().map(|engine| engine.snapshot().phase);
+    if phase.is_ok_and(should_show_main_for_second_instance) {
+        let _ = show_main_window(app.clone());
+    }
+}
+
 fn ensure_widget(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
     if let Some(window) = app.get_webview_window("widget") {
         return Ok(window);
     }
-    let window = WebviewWindowBuilder::new(
+    let builder = WebviewWindowBuilder::new(
         app,
         "widget",
         WebviewUrl::App("index.html?view=widget".into()),
     )
     .title("护眼助手计时")
-    .inner_size(248.0, 72.0)
-    .min_inner_size(248.0, 72.0)
-    .max_inner_size(248.0, 72.0)
+    .inner_size(WIDGET_LOGICAL_WIDTH as f64, WIDGET_LOGICAL_HEIGHT as f64)
+    .min_inner_size(WIDGET_LOGICAL_WIDTH as f64, WIDGET_LOGICAL_HEIGHT as f64)
+    .max_inner_size(WIDGET_LOGICAL_WIDTH as f64, WIDGET_LOGICAL_HEIGHT as f64)
     .decorations(false)
-    .transparent(true)
     .shadow(false)
     .resizable(false)
     .always_on_top(true)
     .skip_taskbar(true)
-    .visible(false)
-    .build()
-    .map_err(|error| error.to_string())?;
+    .visible(false);
+    #[cfg(target_os = "windows")]
+    let builder = builder.transparent(true);
+    let window = builder.build().map_err(|error| error.to_string())?;
     let state = app.state::<RuntimeState>();
     if let Ok(position) = state.widget_position.lock() {
         if let Some(position) = *position {
@@ -441,14 +460,20 @@ fn clamp_widget_window(window: &tauri::WebviewWindow) -> Result<(), String> {
             screens.push(screen);
         }
     }
+    let scale_factor = window.scale_factor().map_err(|error| error.to_string())?;
+    let (widget_width, widget_height) = persistence::logical_size_to_physical(
+        WIDGET_LOGICAL_WIDTH,
+        WIDGET_LOGICAL_HEIGHT,
+        scale_factor,
+    );
     let clamped = persistence::clamp_widget_position(
         WidgetPosition {
             x: position.x,
             y: position.y,
         },
         &screens,
-        248,
-        72,
+        widget_width,
+        widget_height,
     );
     if clamped.x != position.x || clamped.y != position.y {
         window
@@ -486,10 +511,7 @@ fn sync_windows(app: &AppHandle, snapshot: &AppSnapshot) -> Result<(), String> {
         }
         clamp_widget_window(&widget)?;
         widget.set_always_on_top(true).map_err(|e| e.to_string())?;
-        widget
-            .set_visible_on_all_workspaces(true)
-            .map_err(|e| e.to_string())?;
-        macos_window::present_widget_window(&widget)?;
+        windows_window::present_widget_window(&widget)?;
     } else {
         widget.hide().map_err(|e| e.to_string())?;
         if let Some(main) = main.as_ref() {
@@ -538,7 +560,7 @@ fn show_break_windows(app: &AppHandle, main: Option<&tauri::WebviewWindow>) -> R
                 monitor.size().height,
             ))
             .map_err(|error| error.to_string())?;
-        macos_window::present_break_window(&window, index, monitor.name().cloned())?;
+        windows_window::present_break_window(&window, index, monitor.name().cloned())?;
     }
     close_extra_break_windows(app, monitors.len());
     Ok(())
@@ -551,7 +573,7 @@ fn close_extra_break_windows(app: &AppHandle, keep: usize) {
             .and_then(|value| value.parse::<usize>().ok())
         {
             if index >= keep {
-                if let Err(error) = macos_window::dismiss_break_window(&window) {
+                if let Err(error) = windows_window::dismiss_break_window(&window) {
                     eprintln!("failed to dismiss {label}: {error}");
                 }
                 if let Err(error) = window.close() {
@@ -575,7 +597,7 @@ fn configure_tray(app: &mut tauri::App) -> tauri::Result<()> {
     let builder = TrayIconBuilder::new()
         .tooltip("护眼助手")
         .icon(tray_icon)
-        .icon_as_template(true)
+        .icon_as_template(tray_icon_is_template())
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -653,14 +675,13 @@ fn configure_tray(app: &mut tauri::App) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            handle_second_instance(app);
+        }))
         .manage(RuntimeState::default())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .setup(|app| {
-            #[cfg(target_os = "macos")]
-            if macos_window::break_window_policy().requires_accessory_application {
-                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-            }
             let settings_path = app
                 .path()
                 .app_data_dir()
@@ -792,6 +813,19 @@ mod tests {
     fn tray_template_icon_is_packaged_and_decodable() {
         let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/trayTemplate.png"));
         assert!(icon.is_ok());
+    }
+
+    #[test]
+    fn windows_tray_uses_a_colored_icon() {
+        assert!(!tray_icon_is_template());
+    }
+
+    #[test]
+    fn second_instance_does_not_replace_a_break_overlay() {
+        assert!(should_show_main_for_second_instance(TimerPhase::Idle));
+        assert!(should_show_main_for_second_instance(TimerPhase::Working));
+        assert!(should_show_main_for_second_instance(TimerPhase::Paused));
+        assert!(!should_show_main_for_second_instance(TimerPhase::Resting));
     }
 
     #[test]

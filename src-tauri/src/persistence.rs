@@ -18,6 +18,24 @@ pub struct ScreenRect {
     pub height: u32,
 }
 
+pub fn logical_size_to_physical(
+    logical_width: u32,
+    logical_height: u32,
+    scale_factor: f64,
+) -> (u32, u32) {
+    let scale = if scale_factor.is_finite() && scale_factor > 0.0 {
+        scale_factor
+    } else {
+        1.0
+    };
+    let scale_dimension =
+        |value: u32| ((value as f64 * scale).round()).clamp(1.0, u32::MAX as f64) as u32;
+    (
+        scale_dimension(logical_width),
+        scale_dimension(logical_height),
+    )
+}
+
 pub fn clamp_widget_position(
     position: WidgetPosition,
     screens: &[ScreenRect],
@@ -162,6 +180,42 @@ mod tests {
         assert_eq!(
             clamp_widget_position(WidgetPosition { x: 4_000, y: -500 }, &screens, 248, 72,),
             WidgetPosition { x: 1052, y: 50 }
+        );
+    }
+
+    #[test]
+    fn widget_logical_size_scales_to_windows_physical_pixels() {
+        assert_eq!(logical_size_to_physical(248, 72, 1.0), (248, 72));
+        assert_eq!(logical_size_to_physical(248, 72, 1.25), (310, 90));
+        assert_eq!(logical_size_to_physical(248, 72, 1.5), (372, 108));
+        assert_eq!(logical_size_to_physical(248, 72, 2.0), (496, 144));
+    }
+
+    #[test]
+    fn mixed_dpi_widget_stays_visible_on_a_negative_coordinate_screen() {
+        let screens = [
+            ScreenRect {
+                x: -1920,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            ScreenRect {
+                x: 0,
+                y: 0,
+                width: 3840,
+                height: 2160,
+            },
+        ];
+        let (width, height) = logical_size_to_physical(248, 72, 1.5);
+        assert_eq!(
+            clamp_widget_position(
+                WidgetPosition { x: -2000, y: 1200 },
+                &screens,
+                width,
+                height,
+            ),
+            WidgetPosition { x: -1920, y: 972 }
         );
     }
 

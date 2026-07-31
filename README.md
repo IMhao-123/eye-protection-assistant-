@@ -5,11 +5,11 @@
   <p><strong>专注二十分钟，望向远处二十秒。</strong></p>
 </div>
 
-> 当前为 `0.3.0` 预览版。本次构建与实际试用环境为 Apple Silicon Mac、macOS Tahoe 26.0 及以上。
+> 当前为 `0.3.0` Windows 预览版。自动构建环境为 Windows 11 x64；真实 Windows 10/11 设备验收状态以 Release 说明为准。
 
-护眼助手（eye-protection-assistant）是个常驻 macOS 菜单栏的小工具。它每专注 20 分钟，就邀请你望向远处 20 秒；休息画面会铺满每一块屏幕，让这二十秒不被顺手略过。计时胶囊可拖动、可隐藏、会记住你的位置；关掉窗口进度也不丢，唤醒 Mac 后按你的习惯接着来。不弹窗催促、不联网、不收集你的数据，只安静地替你记得休息。
+护眼助手（eye-protection-assistant）是个常驻 Windows 系统托盘的小工具。它每专注 20 分钟，就邀请你望向远处 20 秒；休息画面会铺满每一块屏幕，让这二十秒不被顺手略过。计时胶囊可拖动、可隐藏、会记住你的位置；关掉窗口进度也不丢，锁屏或睡眠后会按设置恢复。不弹窗催促、不联网、不收集你的数据，只安静地替你记得休息。
 
-eye-protection-assistant — a quiet macOS menubar app that reminds you to look away for 20 seconds every 20 minutes. Full-screen breaks on every display, draggable timer, no pop-ups, fully offline.
+eye-protection-assistant — a quiet Windows tray app that reminds you to look away for 20 seconds every 20 minutes. Full-screen breaks on every display, draggable timer, no disruptive pop-ups, fully offline after installation.
 
 ## 屏幕不会提醒你休息
 
@@ -29,39 +29,37 @@ eye-protection-assistant — a quiet macOS menubar app that reminds you to look 
 
 **窗口关了，它仍然记得。** 主页面可以随时关闭，当前进度会继续留在菜单栏。隐藏或关闭计时胶囊时，主页面不会被打扰式地重新弹出。
 
-**离开电脑之后，也按你的习惯回来。** 唤醒 Mac 时，可以选择重新开始一轮、从暂停处继续，或按照真实经过的时间推进。
+**离开电脑之后，也按你的习惯回来。** 解锁或唤醒 Windows 时，会按照你的恢复设置处理当前计时。
 
 ## 不联网，也不认识你
 
 护眼助手不要求注册，不显示广告，也不会把使用情况传到别处。
 
-- 设置与胶囊位置只保存在这台 Mac 上。
+- 设置与胶囊位置只保存在这台电脑上。
 - 没有网络时，计时、休息画面、图标和提示仍然可用。
 - 通知权限不是必需的；即使拒绝，主要功能也不会失效。
-- 登录时启动默认关闭，只有你主动开启后才会生效。
 
 ## 开始使用
 
-目前经过实际确认的环境：
+当前支持目标：
 
-- Apple Silicon Mac（M1 或更新）
-- Tahoe 26.0及以上
+- Windows 10 22H2 或 Windows 11
+- x86-64 处理器
+- Microsoft Edge WebView2 Runtime
 
-更早的 macOS 版本尚未经过真实设备验证，因此当前不承诺兼容。
+Windows on ARM、32 位 Windows、Windows 8 及更早版本不在本轮支持范围。真实设备尚未完成的项目会在 Release 说明中明确标为未验证。
 
 前往 GitHub 的 **Releases** 页面，下载：
 
 ```text
-护眼助手-v0.3.0-macOS-arm64.dmg
+护眼助手-v0.3.0-Windows-x64-setup.exe
 ```
 
-打开安装包，将“护眼助手”拖入“应用程序”，然后从“应用程序”中启动。
+运行安装器后，从开始菜单启动护眼助手。安装器采用当前用户安装，不需要为应用本身授予管理员权限。
 
 ### 第一次打开时
 
-当前预览版还没有经过 Apple 的开发者签名与公证，因此系统可能提示无法验证开发者。
-
-请在 Finder 中按住 Control 点击“护眼助手”，选择“打开”，再在确认窗口中选择一次“打开”。建议只从本仓库的 Releases 页面下载安装包，并对照同时提供的 SHA-256 校验值。
+当前预览版尚未提供 Windows 代码签名，SmartScreen 可能提示发布者未知。建议只从本仓库 Releases 页面下载安装包，并核对同时提供的 SHA-256 校验值。
 
 ## 用起来很简单
 
@@ -77,14 +75,14 @@ eye-protection-assistant — a quiet macOS menubar app that reminds you to look 
 
 | 快捷键 | 做什么 |
 | --- | --- |
-| `Command + ,` | 打开设置 |
-| `Space` / `Command + P` | 暂停或继续 |
+| `Ctrl + ,` | 打开设置 |
+| `Space` / `Ctrl + P` | 暂停或继续 |
 | `Escape` | 关闭当前临时面板 |
-| `Command + Q` | 退出护眼助手 |
+| `Ctrl + Q` | 退出护眼助手 |
 
 ## 当前版本
 
-这是护眼助手当前的公开预览版本。目前只提供 Apple Silicon 构建。睡眠唤醒、多显示器插拔、不同缩放比例和全屏空间等情况已经纳入设计，但仍期待更多真实设备上的反馈。
+这是护眼助手 Windows 兼容工作的公开预览版本。睡眠唤醒、多显示器插拔、不同缩放比例和标准全屏窗口等情况已经纳入设计，但仍需要真实 Windows 设备反馈。
 
 如果你遇到不自然的提醒、无法恢复的窗口、显示器覆盖问题，或只是觉得某个细节不够舒服，欢迎在 Issues 中告诉我们。好的护眼提醒不应该靠堆叠功能完成，而应该在每天使用时让人几乎感觉不到负担。
 

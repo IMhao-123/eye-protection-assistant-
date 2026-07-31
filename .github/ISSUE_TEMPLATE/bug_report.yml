@@ -27,19 +27,18 @@ body:
     validations:
       required: true
   - type: input
-    id: macos
+    id: windows
     attributes:
-      label: macOS 版本
-      placeholder: 例如 macOS 15.5
+      label: Windows 版本
+      placeholder: 例如 Windows 11 24H2
     validations:
       required: true
   - type: input
     id: displays
     attributes:
       label: 显示器环境
-      placeholder: 例如 MacBook 内屏 + 4K 外接屏
+      placeholder: 例如 150% 缩放的笔记本内屏 + 100% 缩放的 4K 外接屏
   - type: textarea
     id: evidence
     attributes:
       label: 截图、日志或其他信息
-

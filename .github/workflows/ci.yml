@@ -2,16 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/windows-v0.3.0]
   pull_request:
 
 permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Verify on macOS
-    runs-on: macos-latest
+  verify-and-package:
+    name: Verify and package on Windows
+    runs-on: windows-latest
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -34,3 +34,13 @@ jobs:
       - name: Run quality gates
         run: npm run verify
 
+      - name: Build NSIS installer
+        run: npm run package:windows
+
+      - name: Upload NSIS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: eye-care-assistant-v0.3.0-windows-x64
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
