@@ -8,8 +8,11 @@ use std::{
 };
 
 use eye_care_core::{
+    application::{apply_timer_action as apply_core_timer_action, TimerActionOutcome},
     domain::{AppSettings, AppSnapshot, TimerAction, TimerEngine, TimerPhase},
     persistence::{self, ScreenRect, WidgetPosition},
+    platform_policy::{should_show_main_for_second_instance, tray_icon_is_template},
+    presentation::{tray_menu_presentation, tray_status_text},
     window_state::{DisplayEvent, WindowCoordinator, WindowPlan},
 };
 use tauri::{
@@ -23,13 +26,6 @@ use tauri_plugin_notification::NotificationExt;
 const SNAPSHOT_EVENT: &str = "app://snapshot-changed";
 const WIDGET_LOGICAL_WIDTH: u32 = 248;
 const WIDGET_LOGICAL_HEIGHT: u32 = 72;
-
-struct TimerActionOutcome {
-    snapshot: AppSnapshot,
-    previous_phase: TimerPhase,
-    display_event: Option<DisplayEvent>,
-    settings_changed: bool,
-}
 
 struct RuntimeState {
     engine: Mutex<TimerEngine>,
@@ -212,32 +208,7 @@ fn apply_timer_action(
         .engine
         .lock()
         .map_err(|_| "计时状态暂时不可用".to_string())?;
-    let previous_phase = engine.snapshot().phase;
-    let changed = engine.dispatch(action, current_time);
-    let display_event = changed.then(|| DisplayEvent::Timer {
-        action,
-        previous_phase,
-        next_phase: engine.snapshot().phase,
-    });
-    let settings_changed = display_event
-        .filter(|event| event.requests_widget_visibility())
-        .map(|_| {
-            let mut settings = engine.snapshot().settings;
-            if settings.widget_visible {
-                false
-            } else {
-                settings.widget_visible = true;
-                engine.update_settings(settings, current_time)
-            }
-        })
-        .unwrap_or(false);
-    let snapshot = engine.snapshot();
-    Ok(TimerActionOutcome {
-        snapshot,
-        previous_phase,
-        display_event,
-        settings_changed,
-    })
+    Ok(apply_core_timer_action(&mut engine, action, current_time))
 }
 
 #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
@@ -323,34 +294,6 @@ fn current_window_plan(
         .map_err(|_| "窗口状态暂时不可用".to_string())
 }
 
-struct TrayMenuPresentation {
-    action_text: &'static str,
-    action_enabled: bool,
-    stop_enabled: bool,
-    widget_text: &'static str,
-    widget_enabled: bool,
-}
-
-fn tray_menu_presentation(snapshot: &AppSnapshot) -> TrayMenuPresentation {
-    let (action_text, action_enabled) = match snapshot.phase {
-        TimerPhase::Idle => ("开始专注", true),
-        TimerPhase::Working => ("暂停计时", true),
-        TimerPhase::Paused => ("继续计时", true),
-        TimerPhase::Resting => ("正在休息", false),
-    };
-    TrayMenuPresentation {
-        action_text,
-        action_enabled,
-        stop_enabled: snapshot.phase != TimerPhase::Idle,
-        widget_text: if snapshot.settings.widget_visible {
-            "隐藏计时胶囊"
-        } else {
-            "显示计时胶囊"
-        },
-        widget_enabled: matches!(snapshot.phase, TimerPhase::Working | TimerPhase::Paused),
-    }
-}
-
 fn update_tray_controls(state: &tauri::State<'_, RuntimeState>, snapshot: &AppSnapshot) {
     let menu = tray_menu_presentation(snapshot);
     if let Ok(action) = state.tray_action.lock() {
@@ -370,25 +313,6 @@ fn update_tray_controls(state: &tauri::State<'_, RuntimeState>, snapshot: &AppSn
             let _ = widget.set_enabled(menu.widget_enabled);
         }
     }
-}
-
-fn tray_status_text(snapshot: &AppSnapshot) -> String {
-    let minutes = snapshot.seconds_remaining / 60;
-    let seconds = snapshot.seconds_remaining % 60;
-    match snapshot.phase {
-        TimerPhase::Idle => "准备就绪".into(),
-        TimerPhase::Working => format!("专注中 · {minutes}:{seconds:02}"),
-        TimerPhase::Paused => format!("已暂停 · {minutes}:{seconds:02}"),
-        TimerPhase::Resting => format!("休息中 · {minutes}:{seconds:02}"),
-    }
-}
-
-fn tray_icon_is_template() -> bool {
-    false
-}
-
-fn should_show_main_for_second_instance(phase: TimerPhase) -> bool {
-    phase != TimerPhase::Resting
 }
 
 fn handle_second_instance(app: &AppHandle) {
@@ -776,89 +700,4 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("failed to run eye-care assistant");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn tray_status_reflects_every_timer_phase() {
-        let mut engine = TimerEngine::new(AppSettings::default());
-        assert_eq!(tray_status_text(&engine.snapshot()), "准备就绪");
-        engine.dispatch(TimerAction::Start, 0);
-        assert_eq!(tray_status_text(&engine.snapshot()), "专注中 · 20:00");
-        engine.dispatch(TimerAction::Pause, 1_000);
-        assert_eq!(tray_status_text(&engine.snapshot()), "已暂停 · 19:59");
-    }
-
-    #[test]
-    fn tray_uses_one_unambiguous_context_action() {
-        let mut snapshot = TimerEngine::new(AppSettings::default()).snapshot();
-        assert_eq!(tray_menu_presentation(&snapshot).action_text, "开始专注");
-
-        snapshot.phase = TimerPhase::Working;
-        assert_eq!(tray_menu_presentation(&snapshot).action_text, "暂停计时");
-        assert_eq!(
-            tray_menu_presentation(&snapshot).widget_text,
-            "隐藏计时胶囊"
-        );
-
-        snapshot.phase = TimerPhase::Paused;
-        assert_eq!(tray_menu_presentation(&snapshot).action_text, "继续计时");
-
-        snapshot.phase = TimerPhase::Resting;
-        let resting = tray_menu_presentation(&snapshot);
-        assert_eq!(resting.action_text, "正在休息");
-        assert!(!resting.action_enabled);
-    }
-
-    #[test]
-    fn tray_template_icon_is_packaged_and_decodable() {
-        let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/trayTemplate.png"));
-        assert!(icon.is_ok());
-    }
-
-    #[test]
-    fn windows_tray_uses_a_colored_icon() {
-        assert!(!tray_icon_is_template());
-    }
-
-    #[test]
-    fn second_instance_does_not_replace_a_break_overlay() {
-        assert!(should_show_main_for_second_instance(TimerPhase::Idle));
-        assert!(should_show_main_for_second_instance(TimerPhase::Working));
-        assert!(should_show_main_for_second_instance(TimerPhase::Paused));
-        assert!(!should_show_main_for_second_instance(TimerPhase::Resting));
-    }
-
-    #[test]
-    fn start_and_resume_align_the_persisted_widget_setting() {
-        let state = RuntimeState::default();
-        {
-            let mut engine = state.engine.lock().expect("timer engine");
-            let mut settings = engine.snapshot().settings;
-            settings.widget_visible = false;
-            engine.update_settings(settings, 0);
-        }
-
-        let started = apply_timer_action(&state, TimerAction::Start, 0).expect("start timer");
-        assert!(started.settings_changed);
-        assert!(started.snapshot.settings.widget_visible);
-        assert_eq!(
-            tray_menu_presentation(&started.snapshot).widget_text,
-            "隐藏计时胶囊"
-        );
-
-        apply_timer_action(&state, TimerAction::Pause, 1_000).expect("pause timer");
-        {
-            let mut engine = state.engine.lock().expect("timer engine");
-            let mut settings = engine.snapshot().settings;
-            settings.widget_visible = false;
-            engine.update_settings(settings, 1_000);
-        }
-        let resumed = apply_timer_action(&state, TimerAction::Resume, 2_000).expect("resume timer");
-        assert!(resumed.settings_changed);
-        assert!(resumed.snapshot.settings.widget_visible);
-    }
 }

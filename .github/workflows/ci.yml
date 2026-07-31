@@ -66,6 +66,8 @@ jobs:
             Stop-Process -Id $second.Id -Force
             throw "Second instance did not exit"
           }
+          $first.Refresh()
+          if ($first.HasExited) { throw "First instance exited after second launch" }
           Stop-Process -Id $first.Id -Force
           $uninstaller = Join-Path $app.Directory.FullName "uninstall.exe"
           if (-not (Test-Path $uninstaller)) { throw "uninstall.exe was not found" }

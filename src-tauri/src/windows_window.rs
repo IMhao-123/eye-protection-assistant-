@@ -1,34 +1,4 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BreakWindowPolicy {
-    pub always_on_top: bool,
-    pub skip_taskbar: bool,
-    pub accepts_mouse_events: bool,
-    pub takes_focus: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WidgetWindowPolicy {
-    pub always_on_top: bool,
-    pub skip_taskbar: bool,
-    pub takes_focus: bool,
-}
-
-pub fn break_window_policy() -> BreakWindowPolicy {
-    BreakWindowPolicy {
-        always_on_top: true,
-        skip_taskbar: true,
-        accepts_mouse_events: true,
-        takes_focus: true,
-    }
-}
-
-pub fn widget_window_policy() -> WidgetWindowPolicy {
-    WidgetWindowPolicy {
-        always_on_top: true,
-        skip_taskbar: true,
-        takes_focus: false,
-    }
-}
+use eye_care_core::platform_policy::{break_window_policy, widget_window_policy};
 
 #[cfg(target_os = "windows")]
 fn place_above_normal_windows(window: &tauri::WebviewWindow, activate: bool) -> Result<(), String> {
@@ -94,26 +64,4 @@ pub fn present_widget_window(window: &tauri::WebviewWindow) -> Result<(), String
         .map_err(|error| error.to_string())?;
     show_without_activation(window)?;
     place_above_normal_windows(window, false)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn break_overlay_policy_is_interactive_and_above_normal_windows() {
-        let policy = break_window_policy();
-        assert!(policy.always_on_top);
-        assert!(policy.skip_taskbar);
-        assert!(policy.accepts_mouse_events);
-        assert!(policy.takes_focus);
-    }
-
-    #[test]
-    fn widget_policy_keeps_the_capsule_visible_without_taking_focus() {
-        let policy = widget_window_policy();
-        assert!(policy.always_on_top);
-        assert!(policy.skip_taskbar);
-        assert!(!policy.takes_focus);
-    }
 }

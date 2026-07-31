@@ -6,7 +6,7 @@ mod windows {
         ptr::{null, null_mut},
         sync::{
             atomic::{AtomicIsize, Ordering},
-            LazyLock, Mutex, OnceLock,
+            Mutex, OnceLock,
         },
         time::Instant,
     };
@@ -26,8 +26,7 @@ mod windows {
 
     static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
     static STARTED_AT: OnceLock<Instant> = OnceLock::new();
-    static DEDUPLICATOR: LazyLock<Mutex<EventDeduplicator>> =
-        LazyLock::new(|| Mutex::new(EventDeduplicator::default()));
+    static DEDUPLICATOR: OnceLock<Mutex<EventDeduplicator>> = OnceLock::new();
     static EVENT_WINDOW: AtomicIsize = AtomicIsize::new(0);
 
     type WtsRegisterSessionNotification = unsafe extern "system" fn(HWND, u32) -> i32;
@@ -69,6 +68,7 @@ mod windows {
             .as_millis()
             .min(u64::MAX as u128) as u64;
         if DEDUPLICATOR
+            .get_or_init(|| Mutex::new(EventDeduplicator::default()))
             .lock()
             .is_ok_and(|mut deduplicator| !deduplicator.accept(event, now_ms))
         {

@@ -13,6 +13,7 @@ describe("Windows release contract", () => {
     const config = JSON.parse(
       readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"),
     ) as {
+      mainBinaryName?: string;
       app: { macOSPrivateApi?: boolean };
       bundle: {
         targets: string[];
@@ -28,6 +29,7 @@ describe("Windows release contract", () => {
     expect(packageJson.scripts["package:windows"]).toBe(
       "tauri build --bundles nsis",
     );
+    expect(config.mainBinaryName).toBe("护眼助手");
     expect(config.app.macOSPrivateApi).not.toBe(true);
     expect(config.bundle.targets).toEqual(["nsis"]);
     expect(config.bundle.icon).toContain("icons/icon.ico");
@@ -62,12 +64,28 @@ describe("Windows release contract", () => {
     expect(packageJson.scripts["verify:windows"]).toContain(
       "npm run test:rust:core",
     );
+    expect(packageJson.scripts["test:rust:core"]).toContain(
+      "-p eye-care-core",
+    );
     expect(packageJson.scripts["verify:windows"]).toContain(
       "npm run test:rust:windows-compile",
     );
     expect(packageJson.scripts["test:rust:windows-compile"]).toContain(
       "--no-run",
     );
+    expect(workflow).toContain("$first.Refresh()");
+    expect(workflow).toContain(
+      'if ($first.HasExited) { throw "First instance exited after second launch" }',
+    );
+  });
+
+  it("packages a valid PNG tray resource", () => {
+    const trayIcon = readFileSync(
+      join(root, "src-tauri", "icons", "trayTemplate.png"),
+    );
+    expect(Array.from(trayIcon.subarray(0, 8))).toEqual([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ]);
   });
 
   it("restores a minimized main window before focusing it", () => {
