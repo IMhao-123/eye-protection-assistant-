@@ -13,7 +13,6 @@ export function BreakView({ snapshot, dispatch }: { snapshot: AppSnapshot; dispa
       <div className="break-view__glow break-view__glow--two" />
       <div className="break-content">
         <div className="break-mark"><Eye size={28} strokeWidth={1.5} /></div>
-        <p className="break-kicker">20–20–20</p>
         <h1>{t.breakTitle}</h1>
         <p className="break-message">{snapshot.settings.breakMessage || t.breakFallback}</p>
         <strong className="break-time">{formatTime(snapshot.secondsRemaining)}</strong>

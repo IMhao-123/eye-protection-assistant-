@@ -5,7 +5,7 @@
   <p><strong>专注二十分钟，望向远处二十秒。</strong></p>
 </div>
 
-> 当前为 `0.2.0` 预览版。本次构建与实际试用环境为 Apple Silicon Mac、macOS Tahoe 26.0 及以上。
+> 当前为 `0.3.0` 预览版。本次构建与实际试用环境为 Apple Silicon Mac、macOS Tahoe 26.0 及以上。
 
 护眼助手（eye-protection-assistant）是个常驻 macOS 菜单栏的小工具。它每专注 20 分钟，就邀请你望向远处 20 秒；休息画面会铺满每一块屏幕，让这二十秒不被顺手略过。计时胶囊可拖动、可隐藏、会记住你的位置；关掉窗口进度也不丢，唤醒 Mac 后按你的习惯接着来。不弹窗催促、不联网、不收集你的数据，只安静地替你记得休息。
 
@@ -52,7 +52,7 @@ eye-protection-assistant — a quiet macOS menubar app that reminds you to look 
 前往 GitHub 的 **Releases** 页面，下载：
 
 ```text
-护眼助手-v0.2.0-macOS-arm64.dmg
+护眼助手-v0.3.0-macOS-arm64.dmg
 ```
 
 打开安装包，将“护眼助手”拖入“应用程序”，然后从“应用程序”中启动。
@@ -84,7 +84,7 @@ eye-protection-assistant — a quiet macOS menubar app that reminds you to look 
 
 ## 当前版本
 
-这是护眼助手的第一个公开预览版本。目前只提供 Apple Silicon 构建。睡眠唤醒、多显示器插拔、不同缩放比例和全屏空间等情况已经纳入设计，但仍期待更多真实设备上的反馈。
+这是护眼助手当前的公开预览版本。目前只提供 Apple Silicon 构建。睡眠唤醒、多显示器插拔、不同缩放比例和全屏空间等情况已经纳入设计，但仍期待更多真实设备上的反馈。
 
 如果你遇到不自然的提醒、无法恢复的窗口、显示器覆盖问题，或只是觉得某个细节不够舒服，欢迎在 Issues 中告诉我们。好的护眼提醒不应该靠堆叠功能完成，而应该在每天使用时让人几乎感觉不到负担。
 

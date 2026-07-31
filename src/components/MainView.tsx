@@ -99,7 +99,6 @@ function Overview({ snapshot, dispatch, t }: { snapshot: AppSnapshot; dispatch: 
   return (
     <div className="page overview-page">
       <header className="page-header">
-        <span className="eyebrow">20–20–20</span>
         <h1>{active ? (snapshot.phase === "paused" ? t.paused : t.working) : t.ready}</h1>
         <p>{t.cycleSummary(snapshot.settings.workMinutes, snapshot.settings.restSeconds)}</p>
       </header>
@@ -108,7 +107,7 @@ function Overview({ snapshot, dispatch, t }: { snapshot: AppSnapshot; dispatch: 
         <div className="focus-orbit__horizon" />
         <div className="focus-orbit__center">
           {active ? <strong>{formatTime(snapshot.secondsRemaining)}</strong> : <Eye size={50} strokeWidth={1.25} />}
-          <span>{active ? (snapshot.phase === "paused" ? t.paused : t.working) : "20 · 20 · 20"}</span>
+          {active && <span>{snapshot.phase === "paused" ? t.paused : t.working}</span>}
         </div>
       </div>
 

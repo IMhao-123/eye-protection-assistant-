@@ -1,6 +1,6 @@
 [package]
 name = "eye-care-assistant"
-version = "0.2.0"
+version = "0.3.0"
 description = "A calm, reliable macOS eye-care reminder"
 authors = ["Builder Studio"]
 edition = "2021"
@@ -26,5 +26,6 @@ tempfile = "3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6.2"
-objc2-app-kit = { version = "0.3.2", features = ["NSApplication", "NSColor", "NSWindow", "NSWorkspace"] }
+objc2 = "0.6.4"
+objc2-app-kit = { version = "0.3.2", features = ["NSApplication", "NSColor", "NSGraphics", "NSPanel", "NSScreen", "NSView", "NSWindow", "NSWorkspace"] }
 objc2-foundation = { version = "0.3.2", features = ["NSNotification", "NSOperation", "NSString"] }

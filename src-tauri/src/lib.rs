@@ -538,10 +538,7 @@ fn show_break_windows(app: &AppHandle, main: Option<&tauri::WebviewWindow>) -> R
                 monitor.size().height,
             ))
             .map_err(|error| error.to_string())?;
-        window
-            .set_visible_on_all_workspaces(true)
-            .map_err(|error| error.to_string())?;
-        macos_window::present_break_window(&window)?;
+        macos_window::present_break_window(&window, index, monitor.name().cloned())?;
     }
     close_extra_break_windows(app, monitors.len());
     Ok(())
@@ -554,6 +551,9 @@ fn close_extra_break_windows(app: &AppHandle, keep: usize) {
             .and_then(|value| value.parse::<usize>().ok())
         {
             if index >= keep {
+                if let Err(error) = macos_window::dismiss_break_window(&window) {
+                    eprintln!("failed to dismiss {label}: {error}");
+                }
                 if let Err(error) = window.close() {
                     eprintln!("failed to close {label}: {error}");
                 }
@@ -657,6 +657,10 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            if macos_window::break_window_policy().requires_accessory_application {
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            }
             let settings_path = app
                 .path()
                 .app_data_dir()

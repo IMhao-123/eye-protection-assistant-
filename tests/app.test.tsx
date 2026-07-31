@@ -13,6 +13,22 @@ const zhSnapshot = {
 describe("main application", () => {
   beforeEach(() => browserMock.reset(zhSnapshot));
 
+  it("does not show the 20-20-20 slogan while idle, working, or paused", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    await screen.findByRole("button", { name: "开始专注" });
+    expect(container).not.toHaveTextContent(/20\s*[–—·-]\s*20\s*[–—·-]\s*20/);
+
+    await user.click(screen.getByRole("button", { name: "开始专注" }));
+    expect(await screen.findByRole("heading", { name: "正在专注" })).toBeInTheDocument();
+    expect(container).not.toHaveTextContent(/20\s*[–—·-]\s*20\s*[–—·-]\s*20/);
+
+    await user.click(screen.getByRole("button", { name: "暂停" }));
+    expect(await screen.findByRole("heading", { name: "计时已暂停" })).toBeInTheDocument();
+    expect(container).not.toHaveTextContent(/20\s*[–—·-]\s*20\s*[–—·-]\s*20/);
+  });
+
   it("starts a focus session from the overview", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -132,6 +148,12 @@ describe("break overlay", () => {
     expect(screen.getByRole("dialog", { name: "确定现在结束休息吗？" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "继续休息" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("does not show the 20-20-20 slogan", async () => {
+    const { container } = render(<App />);
+    await screen.findByRole("button", { name: "提前结束休息" });
+    expect(container).not.toHaveTextContent(/20\s*[–—·-]\s*20\s*[–—·-]\s*20/);
   });
 
   it("continues working after confirming skip", async () => {

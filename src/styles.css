@@ -31,7 +31,6 @@
   --palette-light-break-bg: #10261f;
   --palette-light-break-text: #eaf5f0;
   --palette-light-break-muted: #abc2b8;
-  --palette-light-break-kicker: #8fb3a4;
   --palette-light-break-progress: #a8d0be;
   --palette-light-break-control: #8fa99e;
   --palette-light-break-glow-one: #79aa98;
@@ -67,7 +66,6 @@
   --palette-dark-break-bg: #10261f;
   --palette-dark-break-text: #eaf5f0;
   --palette-dark-break-muted: #abc2b8;
-  --palette-dark-break-kicker: #8fb3a4;
   --palette-dark-break-progress: #a8d0be;
   --palette-dark-break-control: #8fa99e;
   --palette-dark-break-glow-one: #79aa98;
@@ -105,7 +103,6 @@
   --palette-light-break-bg: #102a25;
   --palette-light-break-text: #effaf6;
   --palette-light-break-muted: #b7d2c9;
-  --palette-light-break-kicker: #91c8b8;
   --palette-light-break-progress: #e58a80;
   --palette-light-break-control: #a8c7bd;
   --palette-light-break-glow-one: #65a993;
@@ -140,7 +137,6 @@
   --palette-dark-break-bg: #0d211d;
   --palette-dark-break-text: #edf8f4;
   --palette-dark-break-muted: #abc9bf;
-  --palette-dark-break-kicker: #82bfae;
   --palette-dark-break-progress: #e58a80;
   --palette-dark-break-control: #9fbbb2;
   --palette-dark-break-glow-one: #438e78;
@@ -178,7 +174,6 @@
   --palette-light-break-bg: #181c1a;
   --palette-light-break-text: #f2f5ef;
   --palette-light-break-muted: #bdc7c0;
-  --palette-light-break-kicker: #b6d476;
   --palette-light-break-progress: #d18d32;
   --palette-light-break-control: #aeb9b2;
   --palette-light-break-glow-one: #789631;
@@ -213,7 +208,6 @@
   --palette-dark-break-bg: #111513;
   --palette-dark-break-text: #f0f4ef;
   --palette-dark-break-muted: #b1bdb5;
-  --palette-dark-break-kicker: #a9d84e;
   --palette-dark-break-progress: #e7a34b;
   --palette-dark-break-control: #a9b4ad;
   --palette-dark-break-glow-one: #6e8e2c;
@@ -251,7 +245,6 @@
   --palette-light-break-bg: #142a36;
   --palette-light-break-text: #eff7fb;
   --palette-light-break-muted: #b8ccd6;
-  --palette-light-break-kicker: #89bdd8;
   --palette-light-break-progress: #d66f67;
   --palette-light-break-control: #adc2cc;
   --palette-light-break-glow-one: #4b8fb4;
@@ -286,7 +279,6 @@
   --palette-dark-break-bg: #101b22;
   --palette-dark-break-text: #edf6fa;
   --palette-dark-break-muted: #aec2cc;
-  --palette-dark-break-kicker: #74b8df;
   --palette-dark-break-progress: #e58a82;
   --palette-dark-break-control: #a5b8c2;
   --palette-dark-break-glow-one: #397fa5;
@@ -324,7 +316,6 @@
   --palette-light-break-bg: #1b291f;
   --palette-light-break-text: #f3f8f1;
   --palette-light-break-muted: #bdcbbb;
-  --palette-light-break-kicker: #89b893;
   --palette-light-break-progress: #c89e2d;
   --palette-light-break-control: #afbdad;
   --palette-light-break-glow-one: #578665;
@@ -359,7 +350,6 @@
   --palette-dark-break-bg: #101610;
   --palette-dark-break-text: #eff5ed;
   --palette-dark-break-muted: #afbeae;
-  --palette-dark-break-kicker: #82bd8c;
   --palette-dark-break-progress: #e7c766;
   --palette-dark-break-control: #a8b5a7;
   --palette-dark-break-glow-one: #487957;
@@ -397,7 +387,6 @@
   --break-bg: var(--palette-light-break-bg);
   --break-text: var(--palette-light-break-text);
   --break-muted: var(--palette-light-break-muted);
-  --break-kicker: var(--palette-light-break-kicker);
   --break-progress: var(--palette-light-break-progress);
   --break-control: var(--palette-light-break-control);
   --break-glow-one: var(--palette-light-break-glow-one);
@@ -435,7 +424,6 @@
   --break-bg: var(--palette-dark-break-bg);
   --break-text: var(--palette-dark-break-text);
   --break-muted: var(--palette-dark-break-muted);
-  --break-kicker: var(--palette-dark-break-kicker);
   --break-progress: var(--palette-dark-break-progress);
   --break-control: var(--palette-dark-break-control);
   --break-glow-one: var(--palette-dark-break-glow-one);
@@ -474,7 +462,6 @@
     --break-bg: var(--palette-dark-break-bg);
     --break-text: var(--palette-dark-break-text);
     --break-muted: var(--palette-dark-break-muted);
-    --break-kicker: var(--palette-dark-break-kicker);
     --break-progress: var(--palette-dark-break-progress);
     --break-control: var(--palette-dark-break-control);
     --break-glow-one: var(--palette-dark-break-glow-one);
@@ -515,7 +502,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .page { max-width: 610px; min-height: 100%; margin: 0 auto; display: flex; flex-direction: column; }
 .page-header { text-align: center; }
 .page-header.compact { text-align: left; margin-bottom: 28px; }
-.eyebrow { display: inline-block; color: var(--accent); letter-spacing: .2em; font-size: 10px; font-weight: 700; margin-bottom: 12px; }
 .page-header h1 { font-size: clamp(27px, 4.2vw, 38px); line-height: 1.08; letter-spacing: -.04em; margin: 0; }
 .page-header.compact h1 { font-size: 30px; }
 .page-header p { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
@@ -595,7 +581,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .break-view__glow--two { width: 38vw; height: 38vw; right: -9vw; bottom: -19vw; background: var(--break-glow-two); }
 .break-content { position: relative; z-index: 1; width: min(680px, 82vw); text-align: center; display: flex; align-items: center; flex-direction: column; }
 .break-mark { width: 56px; height: 56px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); border-radius: 18px; display: grid; place-items: center; margin-bottom: 22px; }
-.break-kicker { color: var(--break-kicker); font-size: 10px; font-weight: 700; letter-spacing: .28em; margin: 0 0 14px; }
 .break-content h1 { font-size: clamp(38px, 6vw, 72px); letter-spacing: -.055em; margin: 0; font-weight: 560; }
 .break-message { color: var(--break-muted); font-size: clamp(15px, 2vw, 20px); line-height: 1.6; margin: 18px 0 26px; }
 .break-time { font-size: clamp(72px, 14vw, 160px); letter-spacing: -.065em; font-variant-numeric: tabular-nums; font-weight: 300; line-height: 1; }
