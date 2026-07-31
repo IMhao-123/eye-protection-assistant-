@@ -15,10 +15,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -37,10 +37,48 @@ jobs:
       - name: Build NSIS installer
         run: npm run package:windows
 
+      - name: Generate SHA-256
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          if (-not $installer) { throw "NSIS installer was not generated" }
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Out-File "$($installer.FullName).sha256" -Encoding ascii
+
+      - name: Smoke test installed app
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          $install = Start-Process $installer.FullName -ArgumentList "/S" -PassThru -Wait
+          if ($install.ExitCode -ne 0) { throw "Silent install failed with $($install.ExitCode)" }
+          $app = Get-ChildItem $env:LOCALAPPDATA -Filter "护眼助手.exe" -File -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $app) { throw "Installed application was not found" }
+          $first = Start-Process $app.FullName -PassThru
+          Start-Sleep -Seconds 5
+          $first.Refresh()
+          if ($first.HasExited) { throw "Installed application exited during startup" }
+          $second = Start-Process $app.FullName -PassThru
+          Start-Sleep -Seconds 3
+          $second.Refresh()
+          if (-not $second.HasExited) {
+            Stop-Process -Id $second.Id -Force
+            throw "Second instance did not exit"
+          }
+          Stop-Process -Id $first.Id -Force
+          $uninstaller = Join-Path $app.Directory.FullName "uninstall.exe"
+          if (-not (Test-Path $uninstaller)) { throw "uninstall.exe was not found" }
+          $uninstall = Start-Process $uninstaller -ArgumentList "/S" -PassThru -Wait
+          if ($uninstall.ExitCode -ne 0) { throw "Silent uninstall failed with $($uninstall.ExitCode)" }
+          if (Test-Path $app.FullName) { throw "Application remained after uninstall" }
+
       - name: Upload NSIS installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: eye-care-assistant-v0.3.0-windows-x64
-          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          path: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/nsis/*.sha256
           if-no-files-found: error
           retention-days: 14

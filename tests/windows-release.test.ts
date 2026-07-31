@@ -50,6 +50,18 @@ describe("Windows release contract", () => {
     expect(workflow).toContain("runs-on: windows-latest");
     expect(workflow).toContain("npm run verify");
     expect(workflow).toContain("npm run package:windows");
+    expect(workflow).toContain("Smoke test installed app");
+    expect(workflow).toContain("Get-FileHash");
+    expect(workflow).toContain("uninstall.exe");
+    expect(workflow).toContain("*.sha256");
+  });
+
+  it("restores a minimized main window before focusing it", () => {
+    const backend = readFileSync(
+      join(root, "src-tauri", "src", "lib.rs"),
+      "utf8",
+    );
+    expect(backend).toContain("main.unminimize()");
   });
 
   it("does not track dependency caches, generated schemas, or release binaries", () => {

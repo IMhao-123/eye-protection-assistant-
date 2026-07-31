@@ -20,7 +20,7 @@ const WM_DEVICECHANGE_VALUE: u32 = 0x0219;
 const WM_POWERBROADCAST_VALUE: u32 = 0x0218;
 const WM_WTSSESSION_CHANGE_VALUE: u32 = 0x02B1;
 const PBT_APMSUSPEND_VALUE: usize = 0x4;
-const PBT_APMRESUMEAUTOMATIC_VALUE: usize = 0x12;
+const PBT_APMRESUMESUSPEND_VALUE: usize = 0x7;
 const WTS_SESSION_LOCK_VALUE: usize = 0x7;
 const WTS_SESSION_UNLOCK_VALUE: usize = 0x8;
 #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
@@ -32,7 +32,7 @@ fn map_windows_message(message: u32, event_code: usize) -> Option<SystemEvent> {
         (WM_WTSSESSION_CHANGE_VALUE, WTS_SESSION_LOCK_VALUE)
         | (WM_POWERBROADCAST_VALUE, PBT_APMSUSPEND_VALUE) => Some(SystemEvent::Suspend),
         (WM_WTSSESSION_CHANGE_VALUE, WTS_SESSION_UNLOCK_VALUE)
-        | (WM_POWERBROADCAST_VALUE, PBT_APMRESUMEAUTOMATIC_VALUE) => Some(SystemEvent::Resume),
+        | (WM_POWERBROADCAST_VALUE, PBT_APMRESUMESUSPEND_VALUE) => Some(SystemEvent::Resume),
         (WM_DISPLAYCHANGE_VALUE, _) => Some(SystemEvent::ScreensChanged),
         (WM_DEVICECHANGE_VALUE, _) => Some(SystemEvent::ScreensChanged),
         _ => None,
@@ -62,23 +62,21 @@ impl EventDeduplicator {
 mod windows {
     use std::{
         ptr::{null, null_mut},
-        sync::{LazyLock, Mutex, OnceLock},
+        sync::{
+            atomic::{AtomicIsize, Ordering},
+            LazyLock, Mutex, OnceLock,
+        },
         time::Instant,
     };
 
     use tauri::AppHandle;
     use windows_sys::Win32::{
-        Foundation::{HWND, LPARAM, LRESULT, WPARAM},
-        System::{
-            LibraryLoader::GetModuleHandleW,
-            RemoteDesktop::{
-                WTSRegisterSessionNotification, WTSUnRegisterSessionNotification,
-                NOTIFY_FOR_THIS_SESSION,
-            },
-        },
+        Foundation::{FreeLibrary, HMODULE, HWND, LPARAM, LRESULT, WPARAM},
+        System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW},
         UI::WindowsAndMessaging::{
             CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
-            PostQuitMessage, RegisterClassW, TranslateMessage, WM_DESTROY, WNDCLASSW,
+            PostMessageW, PostQuitMessage, RegisterClassW, TranslateMessage, WM_CLOSE, WM_DESTROY,
+            WNDCLASSW,
         },
     };
 
@@ -88,6 +86,39 @@ mod windows {
     static STARTED_AT: OnceLock<Instant> = OnceLock::new();
     static DEDUPLICATOR: LazyLock<Mutex<EventDeduplicator>> =
         LazyLock::new(|| Mutex::new(EventDeduplicator::default()));
+    static EVENT_WINDOW: AtomicIsize = AtomicIsize::new(0);
+
+    type WtsRegisterSessionNotification = unsafe extern "system" fn(HWND, u32) -> i32;
+    type WtsUnregisterSessionNotification = unsafe extern "system" fn(HWND) -> i32;
+
+    struct WtsNotifications {
+        module: HMODULE,
+        unregister: WtsUnregisterSessionNotification,
+    }
+
+    unsafe fn register_wts_notifications(hwnd: HWND) -> Option<WtsNotifications> {
+        let library_name = "wtsapi32.dll\0".encode_utf16().collect::<Vec<_>>();
+        let module = LoadLibraryW(library_name.as_ptr());
+        if module.is_null() {
+            return None;
+        }
+        let register: Option<WtsRegisterSessionNotification> = std::mem::transmute(GetProcAddress(
+            module,
+            c"WTSRegisterSessionNotification".as_ptr().cast(),
+        ));
+        let unregister: Option<WtsUnregisterSessionNotification> = std::mem::transmute(
+            GetProcAddress(module, c"WTSUnRegisterSessionNotification".as_ptr().cast()),
+        );
+        let (Some(register), Some(unregister)) = (register, unregister) else {
+            let _ = FreeLibrary(module);
+            return None;
+        };
+        if register(hwnd, 0) == 0 {
+            let _ = FreeLibrary(module);
+            return None;
+        }
+        Some(WtsNotifications { module, unregister })
+    }
 
     fn dispatch(event: SystemEvent) {
         let now_ms = STARTED_AT
@@ -162,9 +193,10 @@ mod windows {
         if hwnd.is_null() {
             return Err("无法创建 Windows 系统事件窗口".to_string());
         }
-        if WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION) == 0 {
-            let _ = DestroyWindow(hwnd);
-            return Err("无法监听 Windows 锁屏事件".to_string());
+        EVENT_WINDOW.store(hwnd as isize, Ordering::Release);
+        let wts_notifications = register_wts_notifications(hwnd);
+        if wts_notifications.is_none() {
+            eprintln!("Windows WTS 会话通知不可用，锁屏事件将等待用户验收");
         }
 
         let mut message = std::mem::zeroed();
@@ -172,8 +204,12 @@ mod windows {
             let _ = TranslateMessage(&message);
             DispatchMessageW(&message);
         }
+        EVENT_WINDOW.store(0, Ordering::Release);
 
-        let _ = WTSUnRegisterSessionNotification(hwnd);
+        if let Some(notifications) = wts_notifications {
+            let _ = (notifications.unregister)(hwnd);
+            let _ = FreeLibrary(notifications.module);
+        }
         let _ = DestroyWindow(hwnd);
         Ok(())
     }
@@ -193,13 +229,25 @@ mod windows {
             eprintln!("failed to start Windows system event listener: {error}");
         }
     }
+
+    pub fn shutdown() {
+        let hwnd = EVENT_WINDOW.swap(0, Ordering::AcqRel);
+        if hwnd != 0 {
+            unsafe {
+                let _ = PostMessageW(hwnd as HWND, WM_CLOSE, 0, 0);
+            }
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
-pub use windows::register;
+pub use windows::{register, shutdown};
 
 #[cfg(not(target_os = "windows"))]
 pub fn register(_app: &tauri::AppHandle) {}
+
+#[cfg(not(target_os = "windows"))]
+pub fn shutdown() {}
 
 #[cfg(test)]
 mod tests {
@@ -217,7 +265,8 @@ mod tests {
         assert_eq!(map_windows_message(0x02B1, 0x7), Some(SystemEvent::Suspend));
         assert_eq!(map_windows_message(0x02B1, 0x8), Some(SystemEvent::Resume));
         assert_eq!(map_windows_message(0x0218, 0x4), Some(SystemEvent::Suspend));
-        assert_eq!(map_windows_message(0x0218, 0x12), Some(SystemEvent::Resume));
+        assert_eq!(map_windows_message(0x0218, 0x12), None);
+        assert_eq!(map_windows_message(0x0218, 0x7), Some(SystemEvent::Resume));
         assert_eq!(
             map_windows_message(0x007E, 0),
             Some(SystemEvent::ScreensChanged)

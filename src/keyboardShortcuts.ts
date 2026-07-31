@@ -10,6 +10,8 @@ interface KeyboardCommandInput {
   key: string;
   ctrlKey: boolean;
   metaKey: boolean;
+  altKey?: boolean;
+  altGraph?: boolean;
   editing: boolean;
   phase: TimerPhase;
   skipConfirmation: SkipConfirmationState;
@@ -30,11 +32,13 @@ export function resolveKeyboardCommand({
   key,
   ctrlKey,
   metaKey,
+  altKey = false,
+  altGraph = false,
   editing,
   phase,
   skipConfirmation,
 }: KeyboardCommandInput): KeyboardCommand | null {
-  const commandModifier = ctrlKey || metaKey;
+  const commandModifier = (ctrlKey || metaKey) && !altKey && !altGraph;
   const normalizedKey = key.toLowerCase();
 
   if (commandModifier && key === ",") return "show_main";

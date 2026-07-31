@@ -79,4 +79,21 @@ describe("Windows keyboard shortcuts", () => {
       }),
     ).toBe("cancel_skip");
   });
+
+  it("does not treat AltGr or Ctrl+Alt text input as an app shortcut", () => {
+    const base = {
+      key: "q",
+      ctrlKey: true,
+      metaKey: false,
+      editing: false,
+      phase: "working" as const,
+      skipConfirmation: "none" as const,
+    };
+    expect(
+      resolveKeyboardCommand({ ...base, altKey: true, altGraph: false }),
+    ).toBeNull();
+    expect(
+      resolveKeyboardCommand({ ...base, altKey: false, altGraph: true }),
+    ).toBeNull();
+  });
 });

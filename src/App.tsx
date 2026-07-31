@@ -28,6 +28,8 @@ export default function App() {
         key: event.key,
         ctrlKey: event.ctrlKey,
         metaKey: event.metaKey,
+        altKey: event.altKey,
+        altGraph: event.getModifierState("AltGraph"),
         editing: isEditingTarget(event.target),
         phase: snapshot.phase,
         skipConfirmation: snapshot.skipConfirmation,

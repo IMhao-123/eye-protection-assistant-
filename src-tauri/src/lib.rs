@@ -175,6 +175,7 @@ fn show_main_window(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 fn quit_app(app: AppHandle) {
+    system_events::shutdown();
     app.exit(0);
 }
 
@@ -502,6 +503,7 @@ fn sync_windows(app: &AppHandle, snapshot: &AppSnapshot) -> Result<(), String> {
     if plan.show_main {
         widget.hide().map_err(|error| error.to_string())?;
         if let Some(main) = main.as_ref() {
+            main.unminimize().map_err(|error| error.to_string())?;
             main.show().map_err(|error| error.to_string())?;
             main.set_focus().map_err(|error| error.to_string())?;
         }
@@ -642,7 +644,10 @@ fn configure_tray(app: &mut tauri::App) -> tauri::Result<()> {
                     );
                 };
             }
-            "quit" => app.exit(0),
+            "quit" => {
+                system_events::shutdown();
+                app.exit(0);
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
