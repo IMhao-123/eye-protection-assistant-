@@ -96,6 +96,20 @@ describe("Windows release contract", () => {
     expect(backend).toContain("main.unminimize()");
   });
 
+  it("applies tested window policies in the desktop builders", () => {
+    const backend = readFileSync(
+      join(root, "src-tauri", "src", "lib.rs"),
+      "utf8",
+    );
+    expect(backend).toContain("let widget_policy = widget_window_policy()");
+    expect(backend).toContain(
+      ".skip_taskbar(widget_policy.skip_taskbar)",
+    );
+    expect(backend).toContain("let break_policy = break_window_policy()");
+    expect(backend).toContain(".skip_taskbar(break_policy.skip_taskbar)");
+    expect(backend).not.toContain(".always_on_top(true)");
+  });
+
   it("does not track dependency caches, generated schemas, or release binaries", () => {
     const trackedFiles = execFileSync("git", ["ls-files"], {
       cwd: root,

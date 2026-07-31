@@ -46,12 +46,19 @@ pub fn present_break_window(
     _screen_index: usize,
     _screen_name: Option<String>,
 ) -> Result<(), String> {
+    let policy = break_window_policy();
     window
-        .set_always_on_top(break_window_policy().always_on_top)
+        .set_always_on_top(policy.always_on_top)
+        .map_err(|error| error.to_string())?;
+    window
+        .set_ignore_cursor_events(!policy.accepts_mouse_events)
         .map_err(|error| error.to_string())?;
     window.show().map_err(|error| error.to_string())?;
-    place_above_normal_windows(window, true)?;
-    window.set_focus().map_err(|error| error.to_string())
+    place_above_normal_windows(window, policy.takes_focus)?;
+    if policy.takes_focus {
+        window.set_focus().map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 pub fn dismiss_break_window(window: &tauri::WebviewWindow) -> Result<(), String> {
@@ -59,9 +66,14 @@ pub fn dismiss_break_window(window: &tauri::WebviewWindow) -> Result<(), String>
 }
 
 pub fn present_widget_window(window: &tauri::WebviewWindow) -> Result<(), String> {
+    let policy = widget_window_policy();
     window
-        .set_always_on_top(widget_window_policy().always_on_top)
+        .set_always_on_top(policy.always_on_top)
         .map_err(|error| error.to_string())?;
-    show_without_activation(window)?;
-    place_above_normal_windows(window, false)
+    if policy.takes_focus {
+        window.show().map_err(|error| error.to_string())?;
+    } else {
+        show_without_activation(window)?;
+    }
+    place_above_normal_windows(window, policy.takes_focus)
 }

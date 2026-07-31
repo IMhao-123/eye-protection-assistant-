@@ -11,7 +11,10 @@ use eye_care_core::{
     application::{apply_timer_action as apply_core_timer_action, TimerActionOutcome},
     domain::{AppSettings, AppSnapshot, TimerAction, TimerEngine, TimerPhase},
     persistence::{self, ScreenRect, WidgetPosition},
-    platform_policy::{should_show_main_for_second_instance, tray_icon_is_template},
+    platform_policy::{
+        break_window_policy, should_show_main_for_second_instance, tray_icon_is_template,
+        widget_window_policy,
+    },
     presentation::{tray_menu_presentation, tray_status_text},
     window_state::{DisplayEvent, WindowCoordinator, WindowPlan},
 };
@@ -327,6 +330,7 @@ fn ensure_widget(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
     if let Some(window) = app.get_webview_window("widget") {
         return Ok(window);
     }
+    let widget_policy = widget_window_policy();
     let builder = WebviewWindowBuilder::new(
         app,
         "widget",
@@ -339,8 +343,8 @@ fn ensure_widget(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
     .decorations(false)
     .shadow(false)
     .resizable(false)
-    .always_on_top(true)
-    .skip_taskbar(true)
+    .always_on_top(widget_policy.always_on_top)
+    .skip_taskbar(widget_policy.skip_taskbar)
     .visible(false);
     #[cfg(target_os = "windows")]
     let builder = builder.transparent(true);
@@ -435,7 +439,6 @@ fn sync_windows(app: &AppHandle, snapshot: &AppSnapshot) -> Result<(), String> {
             main.hide().map_err(|error| error.to_string())?;
         }
         clamp_widget_window(&widget)?;
-        widget.set_always_on_top(true).map_err(|e| e.to_string())?;
         windows_window::present_widget_window(&widget)?;
     } else {
         widget.hide().map_err(|e| e.to_string())?;
@@ -453,6 +456,7 @@ fn show_break_windows(app: &AppHandle, main: Option<&tauri::WebviewWindow>) -> R
     } else {
         return Err("主窗口不存在，无法读取显示器".to_string());
     };
+    let break_policy = break_window_policy();
     for (index, monitor) in monitors.iter().enumerate() {
         let label = format!("break-{index}");
         let window = if let Some(window) = app.get_webview_window(&label) {
@@ -467,8 +471,8 @@ fn show_break_windows(app: &AppHandle, main: Option<&tauri::WebviewWindow>) -> R
             .decorations(false)
             .shadow(false)
             .resizable(false)
-            .always_on_top(true)
-            .skip_taskbar(true)
+            .always_on_top(break_policy.always_on_top)
+            .skip_taskbar(break_policy.skip_taskbar)
             .visible(false)
             .build()
             .map_err(|error| error.to_string())?
