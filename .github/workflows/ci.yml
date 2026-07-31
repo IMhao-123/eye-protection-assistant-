@@ -32,7 +32,7 @@ jobs:
         run: npm ci
 
       - name: Run quality gates
-        run: npm run verify
+        run: npm run verify:windows
 
       - name: Build NSIS installer
         run: npm run package:windows

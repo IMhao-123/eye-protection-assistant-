@@ -970,16 +970,22 @@ dependencies = [
 name = "eye-care-assistant"
 version = "0.3.0"
 dependencies = [
- "serde",
- "serde_json",
+ "eye-care-core",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
  "tauri-plugin-notification",
  "tauri-plugin-single-instance",
- "tempfile",
  "tokio",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "eye-care-core"
+version = "0.3.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

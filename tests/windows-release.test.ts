@@ -43,17 +43,31 @@ describe("Windows release contract", () => {
   });
 
   it("runs Windows verification and NSIS packaging in CI", () => {
+    const packageJson = JSON.parse(
+      readFileSync(join(root, "package.json"), "utf8"),
+    ) as {
+      scripts: Record<string, string>;
+    };
     const workflow = readFileSync(
       join(root, ".github", "workflows", "ci.yml"),
       "utf8",
     );
     expect(workflow).toContain("runs-on: windows-latest");
-    expect(workflow).toContain("npm run verify");
+    expect(workflow).toContain("npm run verify:windows");
     expect(workflow).toContain("npm run package:windows");
     expect(workflow).toContain("Smoke test installed app");
     expect(workflow).toContain("Get-FileHash");
     expect(workflow).toContain("uninstall.exe");
     expect(workflow).toContain("*.sha256");
+    expect(packageJson.scripts["verify:windows"]).toContain(
+      "npm run test:rust:core",
+    );
+    expect(packageJson.scripts["verify:windows"]).toContain(
+      "npm run test:rust:windows-compile",
+    );
+    expect(packageJson.scripts["test:rust:windows-compile"]).toContain(
+      "--no-run",
+    );
   });
 
   it("restores a minimized main window before focusing it", () => {

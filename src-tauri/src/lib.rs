@@ -1,7 +1,4 @@
-mod domain;
-mod persistence;
 mod system_events;
-mod window_state;
 mod windows_window;
 
 use std::{
@@ -10,8 +7,11 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use domain::{AppSettings, AppSnapshot, TimerAction, TimerEngine, TimerPhase};
-use persistence::{ScreenRect, WidgetPosition};
+use eye_care_core::{
+    domain::{AppSettings, AppSnapshot, TimerAction, TimerEngine, TimerPhase},
+    persistence::{self, ScreenRect, WidgetPosition},
+    window_state::{DisplayEvent, WindowCoordinator, WindowPlan},
+};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
@@ -19,7 +19,6 @@ use tauri::{
     WindowEvent,
 };
 use tauri_plugin_notification::NotificationExt;
-use window_state::{DisplayEvent, WindowCoordinator, WindowPlan};
 
 const SNAPSHOT_EVENT: &str = "app://snapshot-changed";
 const WIDGET_LOGICAL_WIDTH: u32 = 248;

@@ -15,6 +15,7 @@ vite.config.d.ts
 
 # ── Rust / Tauri 编译产物 ─────────────────────
 src-tauri/target/
+**/target/
 src-tauri/gen/
 src-tauri/.cargo/
 src-tauri/binaries/
