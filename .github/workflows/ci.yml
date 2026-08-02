@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, codex/windows-v0.3.0]
+    branches: [main, windows-v0.3.0]
   pull_request:
 
 permissions:
